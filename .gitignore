@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+
+# Obsidian local UI state and installed extensions
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache/
+.obsidian/plugins/
+.obsidian/themes/
+
+# Reinforcement-learning outputs
+logs/
+runs/
+checkpoints/
+videos/
+artifacts/
+*.pt
+*.pth
+*.onnx
+events.out.tfevents.*
+
+# Isaac Sim / Omniverse caches and generated data
+.cache/
+cache/
+outputs/
+datasets/

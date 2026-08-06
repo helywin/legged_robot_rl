@@ -1,0 +1,4 @@
+interface:
+  display_name: "四足强化学习实验"
+  short_description: "循序学习并验证 Isaac Lab 四足运动控制实验"
+  default_prompt: "使用 $study-quadruped-rl 带我完成一个可复现的四足强化学习学习实验。"
