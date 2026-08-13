@@ -6,7 +6,7 @@ aliases:
 tags:
   - quadruped-rl/python
   - quadruped-rl/learning
-status: learning
+status: completed
 created: 2026-08-06
 updated: 2026-08-06
 related:
@@ -100,8 +100,16 @@ python examples/q_learning_single_update.py
 3. 学习率为 `0.20` 时，修正量和最终新 Q 值分别是多少？
 4. 本次更新读取了 Q 表的哪些部分，最终只修改了哪个格子？
 
+## 本课结束记录
+
+用户提出题目缺少完整前提，因此重新按“环境场景、Q 表已知值、目标值计算、学习率更新、读写范围”复述了一次。完整复述后，用户要求继续下一课。
+
+> [!success] 本课结论
+> 一次 Q-learning 更新先计算目标值，再让当前观察和动作对应的旧 Q 值按学习率朝目标移动；下一位置的 Q 值只用于读取未来价值。
+
 ## 关联
 
 - 学习率：[[013-update-q-from-one-reward|一次奖励如何更新 Q 值]]
 - 未来价值：[[014-future-value-and-discount|为什么 Q 值要考虑下一位置]]
+- 下一课：[[016-full-line-world-q-learning|完整的走格子 Q-learning 训练循环]]
 - 上级：[[学习主页]]
