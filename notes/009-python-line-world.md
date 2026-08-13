@@ -12,7 +12,7 @@ updated: 2026-08-06
 related:
   - "[[008-basic-loop-review]]"
   - "[[010-q-table]]"
-  - "[[020-observe-go2-demo]]"
+  - "[[120-observe-go2-demo]]"
   - "[[学习主页]]"
 ---
 
@@ -114,5 +114,5 @@ python examples/line_world.py --policy random --seed 0
 
 - 前置复习：[[008-basic-loop-review|基础闭环综合复习]]
 - 下一课：[[010-q-table|Q 表如何保存经验]]
-- 未来阶段：[[020-observe-go2-demo|观察官方 Go2 策略]]
+- 未来阶段：[[120-observe-go2-demo|观察官方 Go2 策略]]
 - 上级：[[学习主页]]
