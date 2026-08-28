@@ -11,7 +11,7 @@ status: future
 created: 2026-08-28
 updated: 2026-08-28
 related:
-  - "[[000-learning-goals]]"
+  - "[[目标/强化学习双目标]]"
   - "[[学习主页]]"
   - "[[023-q-learning-for-games]]"
   - "[[024-dqn-replaces-q-table]]"
@@ -67,7 +67,7 @@ related:
 
 ## 关联
 
-- 总目标：[[000-learning-goals]]
+- 总目标：[[目标/强化学习双目标]]
 - 完整路线：[[教学计划]]
 - Q-learning 游戏映射：[[023-q-learning-for-games]]
 - DQN 直觉：[[024-dqn-replaces-q-table]]

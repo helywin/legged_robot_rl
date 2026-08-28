@@ -12,7 +12,7 @@ updated: 2026-08-28
 related:
   - "[[022-standard-env-interface]]"
   - "[[024-dqn-replaces-q-table]]"
-  - "[[000-stage-goal-chromium-bsu-dqn]]"
+  - "[[目标/Chromium-BSU-DQN通关]]"
   - "[[026-python-frozen-lake-environment]]"
   - "[[学习主页]]"
 ---
@@ -59,6 +59,6 @@ H F F G
 
 - 环境接口：[[022-standard-env-interface]]
 - DQN 动机：[[024-dqn-replaces-q-table]]
-- 游戏目标：[[000-stage-goal-chromium-bsu-dqn]]
+- 游戏目标：[[目标/Chromium-BSU-DQN通关]]
 - 下一课：[[026-python-frozen-lake-environment|纯 Python FrozenLake 环境与随机基线]]
 - 上级：[[学习主页]]

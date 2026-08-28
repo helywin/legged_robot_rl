@@ -2,7 +2,7 @@
 
 这是我的强化学习入门笔记与实验仓库。长期目标有两个：让宇树机器狗实现盲走爬楼梯，以及沿 DQN 方向训练智能体打通 `chromium-bsu`。
 
-使用 Obsidian 时，将本仓库目录作为 Vault 打开，然后从 [[学习主页]] 开始。完整阶段划分与过关标准见 [[教学计划]]。
+使用 Obsidian 时，将本仓库目录作为 Vault 打开，然后从 [[学习主页]] 开始。按知识关系复习时打开 [[图谱/概念图谱|强化学习概念图谱]] 或 [[图谱/强化学习概念图谱.canvas|中文 Canvas]]；按课程顺序学习时打开 [[教学计划]]。
 
 当前已经完成纯 Python 走格子 Q-learning和标准环境接口，正在使用 FrozenLake 做第一个表格 Q-learning 游戏。两个目标先共享基础，之后分别进入游戏 DQN 和 PPO/Isaac Lab。这里首先服务于学习与分层验证，不把小环境结果写成游戏通关，也不把仿真结果直接当作真实机器狗可用的控制器。
 
@@ -36,10 +36,10 @@ isaac-lab demo
 
 ## 两个长期目标
 
-两个目标先作为学习方向保存，完整定义见 [双目标笔记](notes/000-learning-goals.md)：
+两个目标先作为学习方向保存，完整定义见 [双目标笔记](目标/强化学习双目标.md)：
 
-1. [宇树机器狗盲走爬楼梯](notes/000-stage-goal-blind-stairs.md)；
-2. [DQN 打通 Chromium B.S.U.](notes/000-stage-goal-chromium-bsu-dqn.md)。
+1. [宇树机器狗盲走爬楼梯](目标/四足机器人盲走楼梯.md)；
+2. [DQN 打通 Chromium B.S.U.](目标/Chromium-BSU-DQN通关.md)。
 
 现在不直接启动任何一个复杂目标。先完成环境接口、FrozenLake 和神经网络基础，再分别进入 DQN 游戏训练与四足机器人训练。
 
@@ -80,7 +80,10 @@ isaac-lab demo
 ├── examples/             # 可安装的纯 Python 教学包
 ├── exercises/            # 场景和要求自包含的 Python 编程题
 ├── tests/                # 纯 Python 示例的单元测试
-├── notes/                # 概念笔记和阶段总结
+├── 课程/                 # 带编号的课程与学习过程
+├── 概念/                 # 中文命名的语义概念节点
+├── 图谱/                 # 概念索引与 Obsidian Canvas
+├── 目标/                 # 两个长期目标及证据边界
 └── experiments/          # 可复现实验记录；一项实验一个目录
 ```
 
@@ -88,8 +91,8 @@ isaac-lab demo
 
 ## 当前学习任务
 
-当前学习 [[026-python-frozen-lake-environment|纯 Python FrozenLake 环境与随机基线]]。先确认环境接口和随机回放，再加入 Q-learning，对比随机策略、训练策略和冻结后的独立评估。
+当前学习 [[课程/028-train-frozen-lake-q-table|在 FrozenLake 中训练 16×4 Q 表]]。环境和手写观察策略已经完成，现在只补全一次 Q-learning 更新，再对比训练策略和冻结后的独立评估。
 
-本课的动手入口是 `exercises/frozen_lake_handwritten_policy.py`。场景、任务、运行命令和成功条件都写在文件内，只需按其中的 `TODO` 补全策略。
+本课的动手入口是 `exercises/train_frozen_lake_q_learning.py`。场景、任务、运行命令和成功条件都写在文件内，只需按其中的 `TODO` 补全更新函数。
 
-最近关于“Q-learning 能否玩游戏”和“DQN 怎样替代 Q 表”的问答已整理到 [023 课](notes/023-q-learning-for-games.md)、[024 课](notes/024-dqn-replaces-q-table.md)和 [025 课](notes/025-choose-a-tabular-q-game.md)。
+最近关于“Q-learning 能否玩游戏”和“DQN 怎样替代 Q 表”的问答已整理到 [023 课](课程/023-q-learning-for-games.md)、[024 课](课程/024-dqn-replaces-q-table.md)和 [025 课](课程/025-choose-a-tabular-q-game.md)。

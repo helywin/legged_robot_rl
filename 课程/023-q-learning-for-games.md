@@ -12,7 +12,7 @@ updated: 2026-08-28
 related:
   - "[[021-stage-one-q-learning-review]]"
   - "[[024-dqn-replaces-q-table]]"
-  - "[[000-stage-goal-chromium-bsu-dqn]]"
+  - "[[目标/Chromium-BSU-DQN通关]]"
   - "[[学习主页]]"
 ---
 
@@ -49,5 +49,5 @@ Q-learning 的闭环可以用于自动游戏；限制来自 Q 表无法枚举大
 
 - 前置：[[021-stage-one-q-learning-review]]
 - 下一课：[[024-dqn-replaces-q-table]]
-- 游戏目标：[[000-stage-goal-chromium-bsu-dqn]]
+- 游戏目标：[[目标/Chromium-BSU-DQN通关]]
 - 上级：[[学习主页]]

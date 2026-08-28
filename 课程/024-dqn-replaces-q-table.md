@@ -12,7 +12,7 @@ updated: 2026-08-28
 related:
   - "[[023-q-learning-for-games]]"
   - "[[025-choose-a-tabular-q-game]]"
-  - "[[000-stage-goal-chromium-bsu-dqn]]"
+  - "[[目标/Chromium-BSU-DQN通关]]"
   - "[[学习主页]]"
 ---
 
@@ -54,5 +54,5 @@ related:
 
 - 前置：[[023-q-learning-for-games]]
 - 下一课：[[025-choose-a-tabular-q-game]]
-- 长期应用：[[000-stage-goal-chromium-bsu-dqn]]
+- 长期应用：[[目标/Chromium-BSU-DQN通关]]
 - 上级：[[学习主页]]

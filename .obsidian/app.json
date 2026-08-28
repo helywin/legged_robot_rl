@@ -2,6 +2,6 @@
   "alwaysUpdateLinks": true,
   "newLinkFormat": "shortest",
   "newFileLocation": "folder",
-  "newFileFolderPath": "notes",
+  "newFileFolderPath": "课程",
   "attachmentFolderPath": "assets"
 }
