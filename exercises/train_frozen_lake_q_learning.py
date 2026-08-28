@@ -131,9 +131,16 @@ def learn_from_transition(
 ) -> float:
     """用一条经验更新一个 Q 值；只修改本函数中的 TODO。"""
 
-    # TODO: 按文件顶部“你的任务”中的五步完成更新。
-    raise NotImplementedError("请补全 learn_from_transition() 中的 TODO")
-
+    old_q = q_table[observation][action_index]
+    best_next_q: int
+    if terminated:
+        best_next_q = 0
+    else:
+        best_next_q = max(q_table[new_observation])
+    target = calculate_target(reward, best_next_q, discount_factor, terminated)
+    new_q = update_q_value(old_q, target, learning_rate)
+    q_table[observation][action_index] = new_q
+    return new_q
 
 def train_q_table(
     episodes: int = 1000,

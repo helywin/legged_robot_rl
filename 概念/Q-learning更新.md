@@ -25,3 +25,7 @@ related:
 - [[课程/014-future-value-and-discount|未来价值与折扣]]
 - [[课程/015-one-q-learning-update|完整的一次 Q-learning 更新]]
 - [[课程/017-value-propagation|价值传播]]
+- [[课程/028-train-frozen-lake-q-table|FrozenLake Q 表训练]]
+
+> [!success] 已验证实例
+> FrozenLake 练习中，一条终止经验把观察 14、动作 RIGHT 对应的 Q 值从 0 更新并写回为 0.2；完整训练后的冻结评估达到 20/20。

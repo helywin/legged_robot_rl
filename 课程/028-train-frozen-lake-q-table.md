@@ -7,7 +7,7 @@ tags:
   - game-rl/tabular-q
   - reinforcement-learning/q-learning
   - reinforcement-learning/python
-status: learning
+status: completed
 created: 2026-08-28
 updated: 2026-08-28
 related:
@@ -54,8 +54,40 @@ Q 表列：LEFT、DOWN、RIGHT、UP 共 4 个动作
 .venv/bin/python -m exercises.train_frozen_lake_q_learning
 ```
 
-> [!note] 当前状态
-> 练习脚手架已建立，但 Q 值更新 TODO 尚未完成，所以目前只验证了文件能友好提示未完成；还不能声称 FrozenLake 训练成功。
+> [!success] 当前状态
+> `learn_from_transition()` 已完成，训练、冻结评估和 Q 表不变性检查均通过。
+
+## 第一次失败与诊断
+
+第一次实现正确算出了 `target`，也调用了 `update_q_value()`，但没有接住函数返回的新 Q 值，也没有写回 `q_table[observation][action_index]`。
+
+实际现象是：
+
+- 训练 1000 局只随机到达终点 10 次；
+- 训练后 16×4 Q 表仍全部为 0；
+- 冻结评估时四个动作并列，程序总是选择第一列 LEFT；
+- 角色连续 20 步停在观察 0，评估结果为 `0/20`。
+
+一条受控终止经验进一步确认了原因：观察 14 选择 RIGHT 到达观察 15、奖励为 1、学习率为 0.2 时，函数返回了目标值 1.0，但 Q 表中的值仍为 0；本次实际应写入的新 Q 值是 0.2。
+
+## 修正后的实际结果
+
+修正内容是接住 `new_q`、写回原 Q 表格子并返回新值。固定参数运行结果：
+
+```text
+训练期间到达终点: 525/1000
+关闭探索、停止更新后的评估
+到达终点: 20/20
+平均步数: 6.00
+首局路径: 0 -> 4 -> 8 -> 9 -> 13 -> 14 -> 15
+评估是否修改 Q 表: False
+练习通过：Q 表通过奖励更新学出了 FrozenLake 路线
+```
+
+受控终止经验也正确返回并写入 `0.2`。仓库全量单元测试为 35/35 通过。
+
+> [!success] 本课结论
+> Q-learning 更新不仅要计算目标和新 Q 值，还必须把新值写回正确的“观察—动作”格子。冻结评估关闭探索和更新后，学到的策略在确定性 FrozenLake 上稳定走出 6 步安全路线。
 
 ## terminated 与 truncated
 
@@ -67,7 +99,7 @@ Q 表列：LEFT、DOWN、RIGHT、UP 共 4 个动作
 ## 证据边界
 
 > [!warning]
-> 本课仍是纯 Python 表格 Q-learning。即使练习通过，也没有验证 Gymnasium、神经网络、DQN、Chromium B.S.U.、Isaac Lab 或真机。
+> 本课仍是纯 Python 表格 Q-learning。练习通过没有验证 Gymnasium、神经网络、DQN、Chromium B.S.U.、Isaac Lab 或真机。
 
 ## 关联
 
