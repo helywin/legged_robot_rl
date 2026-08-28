@@ -88,7 +88,7 @@ for episode in range(训练轮数):
 ## 运行方式
 
 ```bash
-python examples/train_line_world_q_learning.py
+.venv/bin/python -m examples.train_line_world_q_learning
 ```
 
 默认设置为：

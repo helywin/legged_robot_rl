@@ -52,7 +52,7 @@ related:
 示例使用固定分数 `left=0.30`、`right=0.80`，只演示如何选择动作，**还没有学习或更新 Q 表**。
 
 ```bash
-python examples/epsilon_greedy_demo.py --epsilon 0.2 --decisions 100 --seed 0
+.venv/bin/python -m examples.epsilon_greedy_demo --epsilon 0.2 --decisions 100 --seed 0
 ```
 
 `seed` 固定后，同一台环境重复运行会得到相同结果，方便我们检查。它不会取消随机选择，只是让这串随机结果可以复现。

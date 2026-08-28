@@ -88,7 +88,7 @@ Q(位置2, right): 0.30 → 0.382
 ## Python 演示
 
 ```bash
-python examples/q_learning_single_update.py
+.venv/bin/python -m examples.q_learning_single_update
 ```
 
 这个程序只演示一次更新。下一阶段才会把动作选择、环境交互和 Q 值更新放进循环，让整张 Q 表通过多轮练习逐渐变化。

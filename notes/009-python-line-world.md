@@ -46,8 +46,8 @@ related:
 ## 运行命令
 
 ```bash
-python examples/line_world.py --policy right
-python examples/line_world.py --policy random --seed 0
+.venv/bin/python -m examples.line_world --policy right
+.venv/bin/python -m examples.line_world --policy random --seed 0
 ```
 
 ## 运行记录

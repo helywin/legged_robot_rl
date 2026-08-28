@@ -64,7 +64,7 @@ related:
 ## 运行方式
 
 ```bash
-python examples/value_propagation_demo.py
+.venv/bin/python -m examples.value_propagation_demo
 ```
 
 ## 本次实际结果

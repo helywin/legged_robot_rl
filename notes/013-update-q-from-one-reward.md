@@ -77,7 +77,7 @@ new_q = old_q + learning_rate * (reward - old_q)
 ## Python 演示
 
 ```bash
-python examples/q_value_update_demo.py \
+.venv/bin/python -m examples.q_value_update_demo \
   --initial-q 0.3 --reward 1.0 --learning-rate 0.2 --updates 4
 ```
 

@@ -9,6 +9,7 @@ status: future
 created: 2026-08-06
 updated: 2026-08-06
 related:
+  - "[[000-learning-goals]]"
   - "[[学习主页]]"
   - "[[001-what-is-reinforcement-learning]]"
 ---
@@ -54,5 +55,6 @@ related:
 
 ## 关联
 
+- 总目标：[[000-learning-goals]]
 - 上级：[[学习主页]]
 - 基础起点：[[001-what-is-reinforcement-learning|第一课：什么是强化学习]]

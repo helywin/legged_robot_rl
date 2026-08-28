@@ -1,12 +1,24 @@
 # legged_robot_rl
 
-这是我的四足机器人关节强化学习学习与实验仓库。长期目标是让宇树机器狗实现盲走爬楼梯。
+这是我的强化学习入门笔记与实验仓库。长期目标有两个：让宇树机器狗实现盲走爬楼梯，以及沿 DQN 方向训练智能体打通 `chromium-bsu`。
 
 使用 Obsidian 时，将本仓库目录作为 Vault 打开，然后从 [[学习主页]] 开始。完整阶段划分与过关标准见 [[教学计划]]。
 
-当前阶段使用纯 Python 走格子环境，从零理解 Q-learning，并保留每次学习、测试和纠正记录。完成简单环境和 PPO 基础后，才进入 Isaac Lab 和 Unitree Go2。这里首先服务于学习和仿真验证，不把仿真结果直接当作真实机器狗可用的控制器。
+当前已经完成纯 Python 走格子 Q-learning和标准环境接口，正在使用 FrozenLake 做第一个表格 Q-learning 游戏。两个目标先共享基础，之后分别进入游戏 DQN 和 PPO/Isaac Lab。这里首先服务于学习与分层验证，不把小环境结果写成游戏通关，也不把仿真结果直接当作真实机器狗可用的控制器。
 
-## 当前环境
+## Python 项目环境
+
+纯 Python 课程使用根目录的 `pyproject.toml` 管理项目元数据和依赖，并统一在 `.venv` 中运行：
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install --editable '.[dev]'
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+`.venv/` 已加入 `.gitignore`，不提交到仓库。后续课程、示例和测试不使用裸 `python` 或系统 Python；新增第三方依赖时先写入 `pyproject.toml`，再安装到 `.venv`。
+
+## Isaac Lab 环境
 
 - Distrobox：`isaac-lab3`
 - 统一入口：`/home/jiang/distrobox-homes/bin/isaac-lab`
@@ -22,34 +34,37 @@ isaac-lab demo
 
 不要直接运行裸 `isaacsim`。本机启动器还负责准备 Python 和 ROS 2 运行环境。
 
-## 长期目标：盲走爬楼梯
+## 两个长期目标
 
-这个目标先作为学习方向保存。现在不展开训练方法、传感器选择和真机部署；等基础概念学完后再回来拆解。
+两个目标先作为学习方向保存，完整定义见 [双目标笔记](notes/000-learning-goals.md)：
 
-较远阶段的技术想法单独记在 [阶段目标笔记](notes/000-stage-goal-blind-stairs.md) 中，不是当前必读内容。
+1. [宇树机器狗盲走爬楼梯](notes/000-stage-goal-blind-stairs.md)；
+2. [DQN 打通 Chromium B.S.U.](notes/000-stage-goal-chromium-bsu-dqn.md)。
+
+现在不直接启动任何一个复杂目标。先完成环境接口、FrozenLake 和神经网络基础，再分别进入 DQN 游戏训练与四足机器人训练。
 
 ## 从零开始的学习顺序
 
 本节只保留路线摘要；教学内容、阶段过关标准和当前进度以 [[教学计划]] 为准。
 
-盲走爬楼梯是方向，不是我们马上要做的第一项技术任务。学习分成以下阶段：
+两个长期目标都不是马上执行的第一项技术任务。学习分成共享基础和两条后续分支：
 
 1. **零基础概念**：先弄懂控制、强化学习、观察、动作和奖励分别是什么意思。
 2. **纯 Python 小环境**：用走格子程序看懂一次完整交互，不接触机器人和神经网络。
-3. **第一次学习算法**：让走格子策略从尝试中学会到达目标。
-4. **看懂一个机器人例子**：观看已经训练好的 Go2，只寻找学过的概念。
-5. **第一次机器人训练**：做一个很短的训练，理解“训练”改变了什么。
-6. **复杂地形**：理解平地策略为什么不能自然解决楼梯。
-7. **盲走楼梯**：最后才开始修改 Go2 rough 任务和做对照实验。
+3. **表格 Q-learning**：让走格子策略从尝试中学会到达目标。
+4. **标准环境接口与 FrozenLake**：把同一训练循环用于一个带失败状态的小游戏。
+5. **神经网络与 DQN 基础**：理解网络为什么能替代巨大 Q 表。
+6. **游戏分支**：先完成 DQN 小任务，再适配和训练 Chromium B.S.U.。
+7. **机器人分支**：先学习 PPO 与 Isaac Lab，再进入 Go2 平地、仿真盲走楼梯和真机安全验证。
 
-现在处于纯 Python Q-learning 阶段，不需要先懂 PPO、actor/critic 或 TensorBoard。
+现在处于纯 Python FrozenLake 环境阶段，不需要先懂 DQN 的完整训练部件、PPO、actor/critic 或 TensorBoard。
 
-以后会逐步建立下面这个闭环，但第一课不要求一次看懂全部术语：
+两个分支都会沿用同一个闭环，但观察与动作的具体形状不同：
 
 ```text
-机器人状态（观测） -> 神经网络（策略） -> 关节目标（动作）
-        ^                                      |
-        |---------- 仿真推进与奖励 ------------|
+观察 -> 神经网络策略 -> 动作
+ ^                       |
+ |------ 环境与奖励 ------|
 ```
 
 真实机器人部署不属于初期实验。进入该阶段前，还需要完整机器人模型、关节限位、惯量、碰撞体、执行器参数、安全限幅和急停方案。
@@ -59,18 +74,22 @@ isaac-lab demo
 ```text
 .
 ├── README.md             # 项目入口与学习路线
+├── pyproject.toml        # Python 项目元数据和依赖入口
 ├── AGENTS.md             # Codex 在本仓库中的协作规则
 ├── .agents/skills/       # 仓库内可复用的学习与实验 Skill
+├── examples/             # 可安装的纯 Python 教学包
+├── exercises/            # 场景和要求自包含的 Python 编程题
+├── tests/                # 纯 Python 示例的单元测试
 ├── notes/                # 概念笔记和阶段总结
 └── experiments/          # 可复现实验记录；一项实验一个目录
 ```
 
 训练日志、模型检查点、TensorBoard 事件文件和 Isaac Sim 缓存通常很大，不直接提交到本仓库。实验记录中写清它们的外部位置即可。
 
-## 第一个学习任务
+## 当前学习任务
 
-第一课只回答一个问题：
+当前学习 [[026-python-frozen-lake-environment|纯 Python FrozenLake 环境与随机基线]]。先确认环境接口和随机回放，再加入 Q-learning，对比随机策略、训练策略和冻结后的独立评估。
 
-> 强化学习和我们直接编写机器狗控制规则，有什么区别？
+本课的动手入口是 `exercises/frozen_lake_handwritten_policy.py`。场景、任务、运行命令和成功条件都写在文件内，只需按其中的 `TODO` 补全策略。
 
-答案在 [第一课：什么是强化学习](notes/001-what-is-reinforcement-learning.md) 中。理解这一点后，我们才引入“观察、动作、奖励”三个词。
+最近关于“Q-learning 能否玩游戏”和“DQN 怎样替代 Q 表”的问答已整理到 [023 课](notes/023-q-learning-for-games.md)、[024 课](notes/024-dqn-replaces-q-table.md)和 [025 课](notes/025-choose-a-tabular-q-game.md)。
