@@ -6,7 +6,7 @@ aliases:
 tags:
   - reinforcement-learning/neural-network
   - reinforcement-learning/pytorch
-status: learning
+status: completed
 created: 2026-09-01
 updated: 2026-09-01
 related:
@@ -14,6 +14,7 @@ related:
   - "[[概念/自动求导与梯度]]"
   - "[[概念/PyTorch模块与参数]]"
   - "[[概念/预测误差与参数更新]]"
+  - "[[043-pytorch-optimizer-step]]"
   - "[[学习主页]]"
 ---
 
@@ -102,15 +103,38 @@ parameters_changed=False
 .venv/bin/python -m exercises.pytorch_autograd_q_error
 ```
 
-练习要求通过 `model(observation)` 完成预测，再计算平方损失、调用 `backward()` 并返回结果。程序会检查模型的 `forward()` 确实被调用、预测、损失、两个梯度以及参数保持不变。本课保持 `status: learning`，看到你的代码和通过输出后才会完成。
+练习要求通过 `model(observation)` 完成预测，再计算平方损失、调用 `backward()` 并返回结果。程序会检查模型的 `forward()` 确实被调用、预测、损失、两个梯度以及参数保持不变。
+
+## 学习者练习与纠错结果
+
+学习者第一次直接使用参数重新写了预测公式，数值虽然正确，却绕过了模型的 `forward()`。第二次改成 `model.forward(observation)` 后仍然绕过 `nn.Module` 的完整调用入口，因此前向钩子没有执行：
+
+```text
+model_forward_called=False FAIL
+```
+
+最后改为调用模型对象 `model(observation)`，实际运行结果为：
+
+```text
+prediction=+0.500 expected=+0.500 PASS
+loss=+0.250 expected=+0.250 PASS
+weight_grad=-0.500 expected=-0.500 PASS
+bias_grad=-1.000 expected=-1.000 PASS
+model_forward_called=True PASS
+parameters_unchanged=True PASS
+
+练习通过：backward 已根据损失计算参数梯度
+```
+
+这确认了学习者能够沿 PyTorch 标准模型调用路径完成预测，并用损失反向计算梯度；本课达到完成条件。
 
 ## 当前证据边界
 
 > [!success] 启动检查
-> 教师示例和自动测试确认 PyTorch 能从平方损失计算两个参数梯度，且 `backward()` 本身不会更新参数。
+> 教师示例、学习者练习和自动测试确认 PyTorch 能从平方损失计算两个参数梯度，且 `backward()` 本身不会更新参数。
 
 > [!warning] 尚未验证
-> 学习者练习尚未完成；没有学习率、优化器、参数更新、训练循环或 DQN。
+> 还没有优化器、参数更新、训练循环或 DQN。
 
 ## 一句话总结
 
@@ -122,4 +146,5 @@ parameters_changed=False
 - 概念：[[概念/自动求导与梯度]]
 - 模块参数：[[概念/PyTorch模块与参数]]
 - 后续更新：[[概念/预测误差与参数更新]]
+- 下一课：[[043-pytorch-optimizer-step|优化器怎样使用梯度更新参数]]
 - 学习入口：[[学习主页]]

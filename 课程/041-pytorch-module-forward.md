@@ -73,6 +73,19 @@ prediction = model(observation)
 
 PyTorch 会自动转到模型的 `forward(observation)`。不直接调用 `forward()`，是因为 `model(...)` 还保留了 PyTorch 在前向计算前后管理其他功能的入口。
 
+## VS Code 为什么可能把结果显示成 Any
+
+`forward()` 的返回类型虽然写成了 `torch.Tensor`，但 `model(observation)` 会先经过 PyTorch 基类的 `nn.Module.__call__`。Pylance/Pyright 看到这个通用入口时，可能把返回值推断为 `Any`，导致后面的 `loss` 也失去类型提示。
+
+教学模型因此显式补充一个带类型的调用入口：
+
+```python
+def __call__(self, observation: torch.Tensor) -> torch.Tensor:
+    return super().__call__(observation)
+```
+
+这里必须继续调用 `super().__call__()`：它只向 IDE 补充输入输出类型，同时保留 PyTorch 的前向钩子和完整模块调用流程，最后仍会进入 `forward()`。不能把它改成直接调用 `self.forward()`。
+
 运行：
 
 ```bash

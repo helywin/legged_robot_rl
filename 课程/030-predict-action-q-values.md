@@ -15,6 +15,7 @@ related:
   - "[[031-q-prediction-error]]"
   - "[[概念/神经网络参数与预测]]"
   - "[[学习主页]]"
+  - "[[046-pytorch-two-action-q-values]]"
 ---
 
 # 根据观察预测每个动作的 Q 值
@@ -86,3 +87,4 @@ parameters_changed=False
 - 下一课：[[031-q-prediction-error|所选动作的 Q 值预测误差]]
 - 概念：[[概念/神经网络参数与预测]]
 - 上级：[[学习主页]]
+- PyTorch 实现：[[046-pytorch-two-action-q-values|一组观察怎样输出两个动作 Q 值]]

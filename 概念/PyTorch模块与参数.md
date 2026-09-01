@@ -35,6 +35,7 @@ related:
 - 普通张量可以参与计算，但只有登记后的参数会出现在 `model.parameters()` 中；
 - `forward()` 只描述前向计算，不负责修改参数；
 - 调用 `model(observation)` 不等于训练；
+- VS Code/Pylance 不能从通用 `nn.Module.__call__` 推断具体输出时，可以在教学模型中添加带张量类型的 `__call__`，但实现仍须委托给 `super().__call__()`；
 - 损失、自动求导和优化器属于后续概念。
 
 ## 对应课程与代码

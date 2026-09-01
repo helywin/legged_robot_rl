@@ -15,6 +15,10 @@ class OneInputQModule(nn.Module):
         self.weight = nn.Parameter(torch.tensor(weight, dtype=torch.float32))
         self.bias = nn.Parameter(torch.tensor(bias, dtype=torch.float32))
 
+    def __call__(self, observation: torch.Tensor) -> torch.Tensor:
+        """给 VS Code/Pylance 明确调用类型，并保留 Module 调用流程。"""
+        return super().__call__(observation)
+
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
         """PyTorch 调用模型对象时自动执行这里。"""
         return observation * self.weight + self.bias

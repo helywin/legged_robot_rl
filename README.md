@@ -99,7 +99,7 @@ isaac-lab demo
 
 ## 当前学习任务
 
-当前已完成 [[课程/041-pytorch-module-forward|nn.Module 怎样组织参数和前向计算]]，学习者完成参数登记并在修正向量输出后通过三组标量预测。现在进入 [[课程/042-pytorch-autograd-gradient|自动求导怎样计算参数梯度]]，等待 `backward()` 练习完成；从第 039 课开始每课都必须包含学习者亲手完成的训练环节。
+当前已完成 [[课程/045-pytorch-training-loop|把一次参数更新放进多轮训练循环]]，学习者完成了无警告的八步更新，并厘清 loss、计算图、参数、`.grad` 和 optimizer 之间的连接。现在进入 [[课程/046-pytorch-two-action-q-values|一组观察怎样输出两个动作 Q 值]]，等待两输入两输出线性层练习完成；从第 039 课开始每课都必须包含学习者亲手完成的训练环节。
 
 当前新增入口是 `examples/dqn_training_flow_demo.py`。它与前几节示例都不依赖第三方库，也不代表已经训练真实神经网络或 DQN。
 
