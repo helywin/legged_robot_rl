@@ -2,9 +2,9 @@
 
 这是我的强化学习入门笔记与实验仓库。长期目标有两个：让宇树机器狗实现盲走爬楼梯，以及沿 DQN 方向训练智能体打通 `chromium-bsu`。
 
-使用 Obsidian 时，将本仓库目录作为 Vault 打开，然后从 [[学习主页]] 开始。按知识关系复习时打开 [[图谱/概念图谱|强化学习概念图谱]] 或 [[图谱/强化学习概念图谱.canvas|中文 Canvas]]；按课程顺序学习时打开 [[教学计划]]。
+使用 Obsidian 时，将本仓库目录作为 Vault 打开，然后从 [[学习主页]] 开始。按知识关系复习时打开 [[图谱/概念图谱|强化学习概念图谱]]；按课程顺序学习时打开 [[教学计划]]。
 
-当前已经完成纯 Python 走格子 Q-learning和标准环境接口，正在使用 FrozenLake 做第一个表格 Q-learning 游戏。两个目标先共享基础，之后分别进入游戏 DQN 和 PPO/Isaac Lab。这里首先服务于学习与分层验证，不把小环境结果写成游戏通关，也不把仿真结果直接当作真实机器狗可用的控制器。
+当前已经完成纯 Python 走格子 Q-learning、标准环境接口和确定性 FrozenLake 表格训练，正在学习神经网络怎样用共享参数预测并更新 Q 值。两个目标先共享基础，之后分别进入游戏 DQN 和 PPO/Isaac Lab。这里首先服务于学习与分层验证，不把小环境结果写成游戏通关，也不把仿真结果直接当作真实机器狗可用的控制器。
 
 ## Python 项目环境
 
@@ -57,7 +57,7 @@ isaac-lab demo
 6. **游戏分支**：先完成 DQN 小任务，再适配和训练 Chromium B.S.U.。
 7. **机器人分支**：先学习 PPO 与 Isaac Lab，再进入 Go2 平地、仿真盲走楼梯和真机安全验证。
 
-现在处于纯 Python FrozenLake 环境阶段，不需要先懂 DQN 的完整训练部件、PPO、actor/critic 或 TensorBoard。
+神经网络与 DQN 基础阶段已经完成，并已用标准库串起一条回放经验的简化 DQN 更新流程。尚未完成真实神经网络的 DQN 训练、PPO、actor/critic 或 TensorBoard。
 
 两个分支都会沿用同一个闭环，但观察与动作的具体形状不同：
 
@@ -82,7 +82,7 @@ isaac-lab demo
 ├── tests/                # 纯 Python 示例的单元测试
 ├── 课程/                 # 带编号的课程与学习过程
 ├── 概念/                 # 中文命名的语义概念节点
-├── 图谱/                 # 概念索引与 Obsidian Canvas
+├── 图谱/                 # Markdown 概念索引
 ├── 目标/                 # 两个长期目标及证据边界
 └── experiments/          # 可复现实验记录；一项实验一个目录
 ```
@@ -91,8 +91,8 @@ isaac-lab demo
 
 ## 当前学习任务
 
-当前学习 [[课程/028-train-frozen-lake-q-table|在 FrozenLake 中训练 16×4 Q 表]]。环境和手写观察策略已经完成，现在只补全一次 Q-learning 更新，再对比训练策略和冻结后的独立评估。
+当前正在学习 [[课程/038-python-function-as-model|Python 函数怎样完成一次最小预测]]。课程已退回标准库层，从函数的输入、局部计算和 `return` 开始补齐神经网络 Python 前置；对应练习尚待学习者亲手完成，当前不继续 PyTorch 或 DQN 训练。
 
-本课的动手入口是 `exercises/train_frozen_lake_q_learning.py`。场景、任务、运行命令和成功条件都写在文件内，只需按其中的 `TODO` 补全更新函数。
+当前新增入口是 `examples/dqn_training_flow_demo.py`。它与前几节示例都不依赖第三方库，也不代表已经训练真实神经网络或 DQN。
 
-最近关于“Q-learning 能否玩游戏”和“DQN 怎样替代 Q 表”的问答已整理到 [023 课](课程/023-q-learning-for-games.md)、[024 课](课程/024-dqn-replaces-q-table.md)和 [025 课](课程/025-choose-a-tabular-q-game.md)。
+本轮神经网络基础已整理为 [029 课](课程/029-neural-network-parameters.md)至 [032 课](课程/032-update-one-shared-parameter.md)，并同步到中文概念节点与概念图谱。

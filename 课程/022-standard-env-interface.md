@@ -8,7 +8,7 @@ tags:
   - quadruped-rl/learning
 status: learned
 created: 2026-08-27
-updated: 2026-08-28
+updated: 2026-09-01
 related:
   - "[[009-python-line-world]]"
   - "[[021-stage-one-q-learning-review]]"
@@ -175,6 +175,19 @@ ValueError: not enough values to unpack (expected 3, got 2)
 5. 分清环境、策略和训练算法在闭环中的职责。
 
 第 22 课完成。下一课进入 [[026-python-frozen-lake-environment|纯 Python FrozenLake 环境]]。
+
+## 2026-09-01 接口迁移复习
+
+后续完成的 `FrozenLakeEnv` 已经采用 Gymnasium 风格的核心返回结构：
+
+```python
+observation, info = env.reset()
+new_observation, reward, terminated, truncated, info = env.step(action)
+```
+
+更换为另一个遵守该约定的离散环境时，Q-learning 的“选择动作 → 调用 `step()` → 更新 Q 值 → 切换观察”主体流程保持不变；需要调整的是观察数、动作数、动作编码、奖励与成功含义以及训练参数。
+
+为了真正复用，循环应使用 `terminated or truncated` 结束当前回合，不能依赖本仓库自制环境额外提供的 `env.done`。本次复习确认了环境负责观察、奖励和结束信息，策略负责选动作，训练算法负责更新 Q 值。
 
 ## 关联
 
