@@ -16,6 +16,14 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
+从第 040 课开始使用 PyTorch。当前只需要 CPU 计算，先完成上面的基础安装，再执行：
+
+```bash
+.venv/bin/python -m pip install \
+  --index-url https://download.pytorch.org/whl/cpu \
+  'torch>=2.13,<3'
+```
+
 `.venv/` 已加入 `.gitignore`，不提交到仓库。后续课程、示例和测试不使用裸 `python` 或系统 Python；新增第三方依赖时先写入 `pyproject.toml`，再安装到 `.venv`。
 
 ## Isaac Lab 环境
@@ -91,7 +99,7 @@ isaac-lab demo
 
 ## 当前学习任务
 
-当前正在学习 [[课程/038-python-function-as-model|Python 函数怎样完成一次最小预测]]。课程已退回标准库层，从函数的输入、局部计算和 `return` 开始补齐神经网络 Python 前置；对应练习尚待学习者亲手完成，当前不继续 PyTorch 或 DQN 训练。
+当前已完成 [[课程/041-pytorch-module-forward|nn.Module 怎样组织参数和前向计算]]，学习者完成参数登记并在修正向量输出后通过三组标量预测。现在进入 [[课程/042-pytorch-autograd-gradient|自动求导怎样计算参数梯度]]，等待 `backward()` 练习完成；从第 039 课开始每课都必须包含学习者亲手完成的训练环节。
 
 当前新增入口是 `examples/dqn_training_flow_demo.py`。它与前几节示例都不依赖第三方库，也不代表已经训练真实神经网络或 DQN。
 

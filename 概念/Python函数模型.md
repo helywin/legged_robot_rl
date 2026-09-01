@@ -6,12 +6,13 @@ aliases:
 tags:
   - reinforcement-learning/neural-network
   - reinforcement-learning/python
-status: learning
+status: learned
 created: 2026-09-01
 updated: 2026-09-01
 related:
   - "[[概念/观察与动作]]"
   - "[[概念/神经网络参数与预测]]"
+  - "[[概念/Python类与对象]]"
   - "[[038-python-function-as-model]]"
 ---
 
@@ -38,3 +39,5 @@ Python 函数可以表达最小的预测过程：接收观察和参数，在函�
 - `examples/python_function_model.py`
 - `exercises/python_function_q_prediction.py`
 
+> [!success] 学习者证据
+> 学习者完成两项观察、两项权重和偏置的预测函数，三组可见场景全部通过。

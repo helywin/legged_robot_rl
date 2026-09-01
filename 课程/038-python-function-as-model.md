@@ -6,7 +6,7 @@ aliases:
 tags:
   - reinforcement-learning/neural-network
   - reinforcement-learning/python
-status: learning
+status: completed
 created: 2026-09-01
 updated: 2026-09-01
 related:
@@ -110,15 +110,28 @@ prediction=+0.04
 
 示例只处理一项观察；练习要求你把“杆角度”和“杆角速度”两项观察分别乘以对应权重，再加上偏置。这是在旧知识上多组合一项输入，不是照抄示例。
 
-本课保持 `status: learning`。只有练习实际通过，并且你能说明函数的输入、内部计算和返回值，才会标记完成。
+## 学习者练习结果
+
+学习者完成了 `predict_right_q()`：从 `observation` 和 `weights` 中分别读取两项，将每项观察乘以对应权重，再加上 `bias` 并返回。
+
+实际运行三组输入全部通过：
+
+```text
+场景1 prediction=+0.500 expected=+0.500 PASS
+场景2 prediction=+1.600 expected=+1.600 PASS
+场景3 prediction=+0.500 expected=+0.500 PASS
+练习通过：你已经用一个 Python 函数组合两项观察并返回预测值
+```
+
+代码不是固定返回某个测试答案，而是根据传入的观察和权重计算，因此本课达到完成条件。
 
 ## 当前证据边界
 
 > [!success] 启动检查
-> 标准库示例已实际运行，测试确认函数会使用不同输入得到不同预测，并且调用函数本身不会修改传入的观察和参数。
+> 标准库示例和学习者练习均已实际运行；三组练习场景全部通过，测试确认函数会使用不同输入得到不同预测，并且调用函数本身不会修改传入的观察和参数。
 
 > [!warning] 尚未验证
-> 编程练习仍待学习者完成；尚未学习 Python 类、PyTorch、张量、多层神经网络或 DQN 训练。
+> 尚未学习 Python 类、PyTorch、张量、多层神经网络或 DQN 训练。
 
 ## 一句话总结
 
@@ -130,4 +143,3 @@ prediction=+0.04
 - 概念：[[概念/Python函数模型]]
 - 后续关系：[[概念/神经网络参数与预测]]
 - 学习入口：[[学习主页]]
-

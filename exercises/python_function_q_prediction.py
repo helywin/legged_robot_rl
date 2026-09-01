@@ -77,8 +77,7 @@ def predict_right_q(
     bias: float,
 ) -> float:
     """根据两项观察和对应参数返回“向右推”的预测 Q 值。"""
-    # TODO: 只修改这里。使用 observation、weights 和 bias 计算并返回预测值。
-    raise NotImplementedError("请先完成 predict_right_q() 中的 TODO")
+    return bias + observation[0] * weights[0] + observation[1] * weights[1]
 
 
 TEST_CASES = (
