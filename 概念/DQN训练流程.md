@@ -15,6 +15,7 @@ related:
   - "[[概念/目标网络]]"
   - "[[概念/预测误差与参数更新]]"
   - "[[概念/训练与评估]]"
+  - "[[概念/DQN目标Q值]]"
 ---
 
 # DQN 训练流程
@@ -44,6 +45,10 @@ related:
 
 - [[课程/035-one-dqn-training-step|一条回放经验怎样完成一次 DQN 更新]]
 - `examples/dqn_training_flow_demo.py`
+- PyTorch target：[[048-pytorch-dqn-target-q|奖励和下一观察怎样形成 DQN 目标值]]
+- PyTorch 单条经验更新：[[049-pytorch-one-dqn-update|把预测、target 和 optimizer 合成一次 DQN 更新]]
+
+PyTorch 实现已经把单条经验的两条支路实际拼接：在线网络的 `selected_q` 保留梯度，目标网络的 `target_q` 不保留梯度。`loss` 通过本轮计算图连到在线参数，`backward()` 把梯度写入这些参数的 `.grad`，只管理在线参数的 optimizer 再读取 `.grad` 并修改在线参数。optimizer 不需要也不会直接绑定 loss。
 
 > [!warning] 当前边界
-> 当前只是标准库线性参数的数据流验证，还没有多层神经网络、完整 episode 训练、检查点或独立评估。
+> 当前只验证了单条经验和无隐藏层网络的数据流，还没有批量经验、多层神经网络、完整 episode 训练、检查点或独立评估。

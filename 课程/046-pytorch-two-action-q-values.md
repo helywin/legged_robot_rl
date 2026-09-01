@@ -7,7 +7,7 @@ tags:
   - reinforcement-learning/neural-network
   - reinforcement-learning/pytorch
   - reinforcement-learning/dqn
-status: learning
+status: completed
 created: 2026-09-01
 updated: 2026-09-01
 related:
@@ -16,6 +16,7 @@ related:
   - "[[概念/线性层与多动作Q值]]"
   - "[[概念/神经网络参数与预测]]"
   - "[[学习主页]]"
+  - "[[047-pytorch-selected-action-q-loss]]"
 ---
 
 # 一组观察怎样输出两个动作 Q 值
@@ -101,15 +102,32 @@ observation=[-1.0, 0.0] q_values=[-0.9, 1.2] best_action=1
 .venv/bin/python -m exercises.pytorch_two_action_q_output
 ```
 
-你需要创建一个两输入、两输出的 `nn.Linear`，再在 `forward()` 中调用它。检查器会写入固定参数并验证三组 Q 值、最佳动作和预测不修改参数。本课保持 `status: learning`，看到你的代码和通过输出后才会完成。
+你需要创建一个两输入、两输出的 `nn.Linear`，再在 `forward()` 中调用它。检查器会写入固定参数并验证三组 Q 值、最佳动作和预测不修改参数。
+
+## 学习者练习结果
+
+学习者创建了 `nn.Linear(2, 2)`，并在 `forward()` 中把观察交给该层。实际运行结果：
+
+```text
+linear_layer_registered=True PASS
+parameter_shapes=(2, 2)/(2,) PASS
+case1: q_values=[0.1, -0.05] best_action=0 PASS
+case2: q_values=[-0.9, 1.2] best_action=1 PASS
+case3: q_values=[0.1, 0.2] best_action=1 PASS
+parameters_unchanged=True PASS
+
+练习通过：两个观察量已映射为两个动作 Q 值
+```
+
+这确认了学习者能够用 PyTorch 线性层保持“输入数量、输出数量、参数形状和动作顺序”的对应关系，本课达到完成条件。
 
 ## 当前边界
 
 > [!success] 启动检查
-> 教师示例和自动测试确认一个线性层能把两个观察量映射成顺序固定的两个动作 Q 值。
+> 教师示例、学习者练习和自动测试确认一个线性层能把两个观察量映射成顺序固定的两个动作 Q 值。
 
 > [!warning] 尚未验证
-> 学习者练习尚未完成；还没有只选择实际动作的 Q 值、损失更新、隐藏层、CartPole DQN 或独立评估。
+> 还没有只选择实际动作的 Q 值、损失更新、隐藏层、CartPole DQN 或独立评估。
 
 ## 一句话总结
 
@@ -122,3 +140,4 @@ observation=[-1.0, 0.0] q_values=[-0.9, 1.2] best_action=1
 - 概念：[[概念/线性层与多动作Q值]]
 - 参数与预测：[[概念/神经网络参数与预测]]
 - 学习入口：[[学习主页]]
+- 下一课：[[047-pytorch-selected-action-q-loss|只取实际动作的 Q 值计算损失]]

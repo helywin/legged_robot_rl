@@ -7,7 +7,7 @@ tags:
   - reinforcement-learning/neural-network
   - reinforcement-learning/pytorch
   - reinforcement-learning/dqn
-status: learning
+status: learned
 created: 2026-09-01
 updated: 2026-09-01
 related:
@@ -15,6 +15,7 @@ related:
   - "[[概念/PyTorch模块与参数]]"
   - "[[概念/DQN与神经网络估值]]"
   - "[[046-pytorch-two-action-q-values]]"
+  - "[[概念/所选动作Q值与索引]]"
 ---
 
 # 线性层与多动作 Q 值
@@ -46,3 +47,5 @@ bias.shape = (输出数量,) = (2,)
 - [[046-pytorch-two-action-q-values|一组观察怎样输出两个动作 Q 值]]
 - `examples/pytorch_two_action_q_values.py`
 - `exercises/pytorch_two_action_q_output.py`
+
+学习者已经完成实际练习：创建两输入两输出的 `nn.Linear`，并用三组观察确认输出顺序、最佳动作变化和预测不修改参数。

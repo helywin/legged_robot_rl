@@ -99,7 +99,7 @@ isaac-lab demo
 
 ## 当前学习任务
 
-当前已完成 [[课程/045-pytorch-training-loop|把一次参数更新放进多轮训练循环]]，学习者完成了无警告的八步更新，并厘清 loss、计算图、参数、`.grad` 和 optimizer 之间的连接。现在进入 [[课程/046-pytorch-two-action-q-values|一组观察怎样输出两个动作 Q 值]]，等待两输入两输出线性层练习完成；从第 039 课开始每课都必须包含学习者亲手完成的训练环节。
+当前已完成 [[课程/048-pytorch-dqn-target-q|奖励和下一观察怎样形成 DQN 目标值]]，学习者正确处理非终止与终止 target，并保持目标网络无梯度。现在进入 [[课程/049-pytorch-one-dqn-update|把预测、target 和 optimizer 合成一次 DQN 更新]]，等待单条经验在线更新练习完成；从第 039 课开始每课都必须包含学习者亲手完成的训练环节。
 
 当前新增入口是 `examples/dqn_training_flow_demo.py`。它与前几节示例都不依赖第三方库，也不代表已经训练真实神经网络或 DQN。
 
