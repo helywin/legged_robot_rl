@@ -7,15 +7,17 @@ tags:
   - reinforcement-learning/neural-network
   - reinforcement-learning/pytorch
   - reinforcement-learning/dqn
-status: learning
+status: completed
 created: 2026-09-01
-updated: 2026-09-01
+updated: 2026-09-02
 related:
   - "[[047-pytorch-selected-action-q-loss]]"
   - "[[048-pytorch-dqn-target-q]]"
+  - "[[概念/DQN完整训练流程与公式]]"
   - "[[概念/DQN训练流程]]"
   - "[[概念/优化器与参数更新]]"
   - "[[学习主页]]"
+  - "[[050-pytorch-batch-selected-q]]"
 ---
 
 # 把预测、target 和 optimizer 合成一次 DQN 更新
@@ -222,15 +224,15 @@ new_bias = 0.412
 
 ## 7. 代码不是口诀，而是上述职责的对应物
 
-| 代码 | 背后的职责 |
-| --- | --- |
-| `optimizer.zero_grad()` | 清掉上一次经验留在在线参数上的梯度 |
-| `online_network(observation)` | 产生当前预测，并建立 loss 回到在线参数的路径 |
-| `q_values[executed_action]` | 只训练环境当时真正执行的动作 |
-| `calculate_dqn_target(...)` | 用奖励和下一观察构造暂时固定的学习参照 |
-| `(selected_q - target_q) ** 2` | 衡量当前预测离参照有多远 |
-| `loss.backward()` | 沿计算图把梯度写入在线参数的 `.grad` |
-| `optimizer.step()` | 读取这些 `.grad`，实际改变在线参数 |
+| 代码                             | 背后的职责                     |
+| ------------------------------ | ------------------------- |
+| `optimizer.zero_grad()`        | 清掉上一次经验留在在线参数上的梯度         |
+| `online_network(observation)`  | 产生当前预测，并建立 loss 回到在线参数的路径 |
+| `q_values[executed_action]`    | 只训练环境当时真正执行的动作            |
+| `calculate_dqn_target(...)`    | 用奖励和下一观察构造暂时固定的学习参照       |
+| `(selected_q - target_q) ** 2` | 衡量当前预测离参照有多远              |
+| `loss.backward()`              | 沿计算图把梯度写入在线参数的 `.grad`    |
+| `optimizer.step()`             | 读取这些 `.grad`，实际改变在线参数     |
 
 运行教师示例：
 
@@ -239,6 +241,8 @@ new_bias = 0.412
 ```
 
 ## 本课训练
+
+如果你还没有看清这段代码在完整 DQN 中的位置，先阅读：[[概念/DQN完整训练流程与公式|DQN 完整训练流程、公式和 PlantUML 图]]。其中第二张图正好对应本练习的一个 `TODO`，但不会把完整答案提前写出来。
 
 打开并完成 `one_dqn_update()` 中的一个 `TODO`：
 
@@ -250,15 +254,35 @@ new_bias = 0.412
 .venv/bin/python -m exercises.pytorch_one_dqn_update
 ```
 
-你需要把已经学过的组件按职责拼接。检查器会验证更新前预测、target、loss、更新后预测、未选在线输出行和目标网络。本课保持 `status: learning`，看到你的代码和通过输出后才会完成。
+你需要把已经学过的组件按职责拼接。检查器会验证更新前预测、target、loss、更新后预测、未选在线输出行和目标网络。
+
+## 学习者练习结果
+
+学习者亲手补全了清梯度、在线预测、实际动作索引、无梯度 target、平方损失、反向计算、参数更新和返回值。实际运行结果：
+
+```text
+q_values_before=[0.1, -0.05] PASS
+selected_q_before=-0.0500 PASS
+target_q=1.0100 PASS
+loss=1.1236 PASS
+selected_q_after=0.1726 PASS
+selected_q_moved_toward_target=True PASS
+unselected_online_row_unchanged=True PASS
+target_parameters_unchanged=True PASS
+target_gradients_none=True PASS
+
+练习通过：一条经验已完成一次 PyTorch DQN 在线更新
+```
+
+这次结果验证了完整接力关系：`loss.backward()` 把梯度写入在线参数的 `.grad`，只绑定在线参数的 optimizer 读取这些梯度并修改参数；目标网络没有梯度也没有参数变化。
 
 ## 当前边界
 
 > [!success] 启动检查
-> 教师示例和自动测试确认一条固定经验能更新在线网络的所选动作输出，并保持目标网络不变。
+> 教师示例、学习者练习和自动检查确认一条固定经验能更新在线网络的所选动作输出，并保持目标网络不变。
 
 > [!warning] 尚未验证
-> 学习者练习尚未完成；还没有批量数据、隐藏层、经验回放抽样、目标网络定期同步、CartPole 训练、检查点或独立评估。
+> 还没有批量数据、隐藏层、经验回放抽样、目标网络定期同步、CartPole 训练、检查点或独立评估。
 
 ## 一句话总结
 
@@ -269,5 +293,7 @@ new_bias = 0.412
 - 在线预测：[[047-pytorch-selected-action-q-loss|只取实际动作的 Q 值计算损失]]
 - target：[[048-pytorch-dqn-target-q|奖励和下一观察怎样形成 DQN 目标值]]
 - 流程：[[概念/DQN训练流程]]
+- 完整图解：[[概念/DQN完整训练流程与公式]]
 - 优化器：[[概念/优化器与参数更新]]
 - 学习入口：[[学习主页]]
+- 下一课：[[050-pytorch-batch-selected-q|一批经验怎样逐行取得实际动作 Q 值]]

@@ -11,6 +11,7 @@ related:
   - "[[概念/Q表与Q值]]"
   - "[[概念/环境奖励与回合]]"
   - "[[概念/训练与评估]]"
+  - "[[概念/Q表完整训练流程与公式]]"
 ---
 
 # Q-learning 更新
@@ -26,6 +27,7 @@ related:
 - [[课程/015-one-q-learning-update|完整的一次 Q-learning 更新]]
 - [[课程/017-value-propagation|价值传播]]
 - [[课程/028-train-frozen-lake-q-table|FrozenLake Q 表训练]]
+- [[概念/Q表完整训练流程与公式|带公式与 PlantUML 总图的完整 Q 表训练流程]]
 
 > [!success] 已验证实例
 > FrozenLake 练习中，一条终止经验把观察 14、动作 RIGHT 对应的 Q 值从 0 更新并写回为 0.2；完整训练后的冻结评估达到 20/20。

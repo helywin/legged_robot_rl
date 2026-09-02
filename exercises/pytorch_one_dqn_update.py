@@ -118,8 +118,23 @@ def one_dqn_update(
     terminated: bool,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """使用一条经验更新在线网络，并返回更新前的关键张量。"""
-    # TODO: 只修改这里，拼接预测、动作索引、target、loss、backward 和 step。
-    raise NotImplementedError("请完成 one_dqn_update() 中的 TODO")
+    # 只修改这里，拼接预测、动作索引、target、loss、backward 和 step。
+    optimizer.zero_grad()
+    q_values = online_network(observation)
+    selected_q = q_values[executed_action]
+
+    target_q = calculate_dqn_target(
+      target_network,
+      next_observation,
+      reward,
+      discount_factor,
+      terminated,
+    )
+
+    loss = (selected_q - target_q) ** 2
+    loss.backward()
+    optimizer.step()
+    return (q_values, selected_q, target_q, loss)
 
 
 def check_exercise() -> bool | None:

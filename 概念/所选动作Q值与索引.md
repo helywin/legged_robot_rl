@@ -9,13 +9,14 @@ tags:
   - reinforcement-learning/dqn
 status: learned
 created: 2026-09-01
-updated: 2026-09-01
+updated: 2026-09-02
 related:
   - "[[概念/线性层与多动作Q值]]"
   - "[[概念/预测误差与参数更新]]"
   - "[[概念/DQN训练流程]]"
   - "[[047-pytorch-selected-action-q-loss]]"
   - "[[概念/DQN目标Q值]]"
+  - "[[概念/批量张量与逐行动作索引]]"
 ---
 
 # 所选动作 Q 值与索引
@@ -47,3 +48,5 @@ selected_q = q_values[executed_action]
 - `exercises/pytorch_selected_action_q_loss.py`
 
 学习者已经完成实际练习：当前最大 Q 值对应动作 0，但经验实际执行动作 1；损失正确使用动作 1 的 `-0.05`，反向后未选择行梯度为零、所选行梯度非零。
+
+单条经验可以直接使用一个动作编号；多条经验组成二维 Q 值矩阵后，必须为每行选择各自的动作列，见 [[概念/批量张量与逐行动作索引]]。
