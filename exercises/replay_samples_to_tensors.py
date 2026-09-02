@@ -27,15 +27,39 @@
 你的任务
 ========
 
-只修改 `transitions_to_tensors()` 中的 TODO：
+本题不要求猜 `torch.tensor` 的接口。完整调用形式是：
 
-1. 使用列表推导式，按当前抽样顺序分别收集五个同名字段；
-2. 每个字段分别调用 `torch.tensor(...)`；
-3. 旧观察和下一观察使用 `torch.float32`；
-4. 动作使用 `torch.long`；
-5. 奖励使用 `torch.float32`；
-6. 真正终止标记使用 `torch.bool`；
-7. 按函数返回类型中的顺序返回五个张量。
+    tensor = torch.tensor(data, dtype=数据类型)
+
+- `data` 是必须提供的 Python 数字、列表或嵌套列表；
+- `dtype=` 是具名参数，告诉 PyTorch 用什么类型保存这些数字；
+- 不要写空的 `torch.tensor()`；
+- 赋值行末不要多写逗号，否则得到的是 Python 元组而不是张量。
+
+`transitions_to_tensors()` 已经用普通 `for` 循环完整示范 observation 字段：
+
+    observations_data = []
+    for transition in transitions:
+        observations_data.append(transition.observation)
+
+这段代码的意思是：先建空列表；每次从 `transitions` 取一条经验，
+临时叫做 `transition`；读取它的 `.observation` 属性；再用 `append`
+放到新列表末尾。
+
+下面的列表推导式只是上述普通循环的短写，Python 3.6 已经支持：
+
+    observations_data = [
+        transition.observation for transition in transitions
+    ]
+
+你不需要猜或强制使用短写。只修改剩余 TODO：
+
+1. 照 observations 的两步模式，分别收集其余四个同名字段；
+2. actions 使用 `torch.long`；
+3. rewards 使用 `torch.float32`；
+4. next_observations 使用 `torch.float32`；
+5. terminated 使用 `torch.bool`；
+6. 按函数返回类型中的顺序返回五个张量。
 
 不要修改、排序或删除输入经验，不要把所有字段混进同一个张量，不要把 truncated
 并入 terminated，不要调用网络、loss、backward 或 optimizer，也不要修改检查器。
@@ -103,8 +127,59 @@ def transitions_to_tensors(
     torch.Tensor,
 ]:
     """保持行对齐，把回放样本的五个字段分别转换为张量。"""
-    # TODO: 只修改这里，按字段收集并使用正确 dtype 创建五个张量。
-    raise NotImplementedError("请完成 transitions_to_tensors() 中的 TODO")
+    # 已完成示范：先用普通 for 循环收集 observation。
+    observations_data = []
+    for transition in transitions:
+        observations_data.append(transition.observation)
+
+    # 然后才把 Python 列表转为张量。
+    observations = torch.tensor(
+        observations_data, dtype=torch.float32
+    )
+
+    actions_data = [
+        transition.action for transition in transitions
+    ]
+
+    actions = torch.tensor(
+        actions_data, dtype=torch.long
+    )
+
+    rewards_data = [
+        transition.reward for transition in transitions
+    ]
+
+    rewards = torch.tensor(
+        rewards_data, dtype=torch.float32
+    )
+
+    next_observations_data = [
+        transition.next_observation for transition in transitions
+    ]
+
+    next_observations = torch.tensor(
+        next_observations_data, dtype=torch.float32
+    )
+
+    terminateds_data = [
+        transition.terminated for transition in transitions
+    ]
+
+    terminateds = torch.tensor(
+        terminateds_data, dtype=torch.bool
+    )
+
+    truncateds_data = [
+        transition.truncated for transition in transitions
+    ]
+
+    truncateds = torch.tensor(
+        truncateds_data, dtype=torch.bool
+    )
+
+    return (
+        observations, actions, rewards, next_observations, terminateds
+    )
 
 
 def make_transitions() -> list[VectorTransition]:
@@ -219,7 +294,25 @@ def check_exercise() -> bool | None:
     return all(passed for _label, passed in checks)
 
 
+def show_tensor_api_example() -> None:
+    """先打印已经提供的 observation 转换，让接口和形状可见。"""
+    transitions = make_transitions()
+    observations_data = [
+        transition.observation for transition in transitions
+    ]
+    observations = torch.tensor(
+        observations_data, dtype=torch.float32
+    )
+    print("已提供的 torch.tensor 接口示范")
+    print(f"observations_data={observations_data}")
+    print(f"observations=\n{observations}")
+    print(f"observations.shape={tuple(observations.shape)}")
+    print(f"observations.dtype={observations.dtype}")
+
+
 def main() -> None:
+    show_tensor_api_example()
+    print()
     result = check_exercise()
     if result:
         print()

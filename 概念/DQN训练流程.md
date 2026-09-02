@@ -58,8 +58,9 @@ related:
 - PyTorch 批量 target：[[052-pytorch-batch-dqn-targets|一批经验怎样分别处理终止与未来价值]]
 - PyTorch 完整批量更新：[[053-pytorch-full-batch-dqn-update|把在线支路和目标支路合成完整批量 DQN 更新]]
 - 回放样本批量化：[[054-replay-samples-to-tensors|回放缓冲区样本怎样组装成批量张量]]
+- 回放抽样接入更新：[[055-replay-sample-batch-update|把抽样、组装和更新串成一次训练步]]
 
 PyTorch 实现已经把单条经验的两条支路实际拼接：在线网络的 `selected_q` 保留梯度，目标网络的 `target_q` 不保留梯度。`loss` 通过本轮计算图连到在线参数，`backward()` 把梯度写入这些参数的 `.grad`，只管理在线参数的 optimizer 再读取 `.grad` 并修改在线参数。optimizer 不需要也不会直接绑定 loss。
 
 > [!warning] 当前边界
-> 当前已验证直接构造张量的一次完整批量更新，正在学习把回放样本对象组装成这些张量；还没有把随机抽样接入更新、多层神经网络、完整 episode 训练、检查点或独立评估。
+> 当前已验证直接构造张量的一次完整批量更新，也已验证回放样本对象到五个张量的字段组装；正在学习把随机抽样直接接入更新。还没有多层神经网络、完整 episode 训练、检查点或独立评估。
