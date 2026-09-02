@@ -437,6 +437,8 @@ selected_q_after = 0.1726
 
 - 当前练习：[[049-pytorch-one-dqn-update|把预测、target 和 optimizer 合成一次 DQN 更新]]
 - 下一练习：[[050-pytorch-batch-selected-q|一批经验怎样逐行取得实际动作 Q 值]]
+- 当前批量练习：[[053-pytorch-full-batch-dqn-update|把在线支路和目标支路合成完整批量 DQN 更新]]
+- 当前数据练习：[[054-replay-samples-to-tensors|回放缓冲区样本怎样组装成批量张量]]
 - 简要流程：[[概念/DQN训练流程]]
 - Q 表到神经网络：[[概念/DQN与神经网络估值]]
 - 两个网络：[[概念/目标网络]]

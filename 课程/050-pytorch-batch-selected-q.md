@@ -7,7 +7,7 @@ tags:
   - reinforcement-learning/neural-network
   - reinforcement-learning/pytorch
   - reinforcement-learning/dqn
-status: learning
+status: completed
 created: 2026-09-02
 updated: 2026-09-02
 related:
@@ -17,6 +17,7 @@ related:
   - "[[概念/经验回放]]"
   - "[[概念/DQN训练流程]]"
   - "[[学习主页]]"
+  - "[[051-pytorch-batch-loss-update]]"
 ---
 
 # 一批经验怎样逐行取得实际动作 Q 值
@@ -218,16 +219,20 @@ q_values[executed_actions]
 q_values_shape=(2, 2) PASS
 selected_q_values=[-0.05, 0.6] PASS
 selected_shape=(2,) PASS
+single_item_batch_keeps_shape=(1,) PASS
 parameters_unchanged=True PASS
 ```
 
+> [!warning] 为什么必须写明 `squeeze(1)`
+> 不带维度的 `squeeze()` 会删除所有长度为 1 的维度。当批量中只有一条经验时，形状 `(1, 1)` 会被压成标量 `()`，批量维也丢失；`squeeze(1)` 只删除动作选择产生的第 1 维，把 `(1, 1)` 稳定变成 `(1,)`。
+
 ## 当前边界
 
-> [!success] 已有前置证据
-> 第 49 课的学习者练习已确认单条经验能够形成正确 target、loss 和在线参数更新。
+> [!success] 学习者练习结果
+> 学习者完成批量前向、动作编号升维、沿动作维 `gather` 和 `squeeze(1)`。实际检查确认批量大小为 2 时得到 `[-0.05, 0.60]`，批量大小为 1 时仍保持 `(1,)`，选值保留计算图且模型参数不变。
 
-> [!warning] 本课尚未完成
-> 目前还没有学习者批量索引运行结果。本课也没有批量 target、平均损失、批量反向更新、经验回放随机抽样、CartPole 训练或独立评估。
+> [!warning] 尚未验证
+> 本课没有批量 target、平均损失、批量反向更新、经验回放随机抽样、CartPole 训练或独立评估。
 
 ## 一句话总结
 
@@ -240,4 +245,4 @@ parameters_unchanged=True PASS
 - 单条索引：[[概念/所选动作Q值与索引]]
 - 数据来源：[[概念/经验回放]]
 - 完整流程：[[概念/DQN训练流程]]
-- 下一课：批量损失怎样合成一次参数更新
+- 下一课：[[051-pytorch-batch-loss-update|一批误差怎样合成一次参数更新]]

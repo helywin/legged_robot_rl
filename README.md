@@ -99,7 +99,7 @@ isaac-lab demo
 
 ## 当前学习任务
 
-当前已完成 [[课程/049-pytorch-one-dqn-update|把预测、target 和 optimizer 合成一次 DQN 更新]]，学习者亲手接通了在线预测、无梯度 target、loss、backward 和 optimizer。现在进入 [[课程/050-pytorch-batch-selected-q|一批经验怎样逐行取得实际动作 Q 值]]；从第 039 课开始每课都必须包含学习者亲手完成的训练环节。
+当前已完成 [[课程/053-pytorch-full-batch-dqn-update|把在线支路和目标支路合成完整批量 DQN 更新]]，学习者亲手验证了整批经验只更新在线网络并保持目标网络不变。现在进入 [[课程/054-replay-samples-to-tensors|回放缓冲区样本怎样组装成批量张量]]；从第 039 课开始每课都必须包含学习者亲手完成的训练环节。
 
 当前新增入口是 `examples/dqn_training_flow_demo.py`。它与前几节示例都不依赖第三方库，也不代表已经训练真实神经网络或 DQN。
 

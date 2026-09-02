@@ -64,6 +64,7 @@
     executed_actions=[1, 0] PASS
     selected_q_values=[-0.05, 0.6] PASS
     selected_shape=(2,) PASS
+    single_item_batch_keeps_shape=(1,) PASS
     selected_keeps_gradient=True PASS
     parameters_unchanged=True PASS
 
@@ -96,10 +97,11 @@ def select_batch_action_q_values(
     executed_actions: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """返回整批全部动作 Q 值和每行实际动作对应的 Q 值。"""
-    # TODO: 只修改这里，完成批量前向、动作索引形状和逐行收集。
-    raise NotImplementedError(
-        "请完成 select_batch_action_q_values() 中的 TODO"
-    )
+    q_values = model(observations)
+    indexes = executed_actions.unsqueeze(1)
+    selected_q_values_vec = q_values.gather(dim=1, index=indexes)
+    selected_q_values = selected_q_values_vec.squeeze(1)
+    return (q_values, selected_q_values)
 
 
 def check_exercise() -> bool | None:
@@ -142,6 +144,18 @@ def check_exercise() -> bool | None:
         isinstance(selected_q_values, torch.Tensor)
         and selected_q_values.shape == (2,)
     )
+    single_observation = torch.tensor(
+        [[0.2, -0.1]], dtype=torch.float32
+    )
+    single_action = torch.tensor([1], dtype=torch.long)
+    _single_q_values, single_selected = select_batch_action_q_values(
+        model, single_observation, single_action
+    )
+    single_batch_shape_ok = (
+        isinstance(single_selected, torch.Tensor)
+        and single_selected.shape == (1,)
+        and torch.allclose(single_selected, torch.tensor([-0.05]))
+    )
     keeps_gradient = (
         isinstance(selected_q_values, torch.Tensor)
         and selected_q_values.requires_grad
@@ -158,6 +172,7 @@ def check_exercise() -> bool | None:
         ("executed_actions=[1, 0]", executed_actions.tolist() == [1, 0]),
         ("selected_q_values=[-0.05, 0.6]", selected_values_ok),
         ("selected_shape=(2,)", selected_shape_ok),
+        ("single_item_batch_keeps_shape=(1,)", single_batch_shape_ok),
         ("selected_keeps_gradient=True", keeps_gradient),
         ("parameters_unchanged=True", parameters_unchanged),
     )
