@@ -109,10 +109,10 @@ import torch
 class VectorTransition:
     """一次具有向量观察的环境交互记录。"""
 
-    observation: tuple[float, float]
+    observation: tuple[float, ...]
     action: int
     reward: float
-    next_observation: tuple[float, float]
+    next_observation: tuple[float, ...]
     terminated: bool
     truncated: bool
 

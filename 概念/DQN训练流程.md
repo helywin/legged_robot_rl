@@ -8,7 +8,7 @@ tags:
   - reinforcement-learning/dqn
 status: learning
 created: 2026-09-01
-updated: 2026-09-02
+updated: 2026-09-03
 related:
   - "[[概念/DQN与神经网络估值]]"
   - "[[概念/DQN完整训练流程与公式]]"
@@ -21,6 +21,12 @@ related:
   - "[[概念/批量损失与梯度平均]]"
   - "[[概念/终止掩码与批量DQN目标]]"
   - "[[概念/回放样本的字段批量化]]"
+  - "[[概念/回放预填充与训练起点]]"
+  - "[[概念/环境交互到经验记录]]"
+  - "[[056-periodic-target-network-sync]]"
+  - "[[057-repeated-replay-updates]]"
+  - "[[058-replay-warmup]]"
+  - "[[059-cartpole-step-to-transition]]"
 ---
 
 # DQN 训练流程
@@ -59,8 +65,12 @@ related:
 - PyTorch 完整批量更新：[[053-pytorch-full-batch-dqn-update|把在线支路和目标支路合成完整批量 DQN 更新]]
 - 回放样本批量化：[[054-replay-samples-to-tensors|回放缓冲区样本怎样组装成批量张量]]
 - 回放抽样接入更新：[[055-replay-sample-batch-update|把抽样、组装和更新串成一次训练步]]
+- 目标网络同步：[[056-periodic-target-network-sync|按固定在线更新次数复制目标参数]]
+- 多次回放更新循环：[[057-repeated-replay-updates|每轮更新后按真实更新编号判断目标同步]]
+- 回放预填充：[[058-replay-warmup|先加入新经验，达到门槛后才允许更新]]
+- 真实经验来源：[[059-cartpole-step-to-transition|把动作前观察和同一次 step 的后果组成经验]]
 
 PyTorch 实现已经把单条经验的两条支路实际拼接：在线网络的 `selected_q` 保留梯度，目标网络的 `target_q` 不保留梯度。`loss` 通过本轮计算图连到在线参数，`backward()` 把梯度写入这些参数的 `.grad`，只管理在线参数的 optimizer 再读取 `.grad` 并修改在线参数。optimizer 不需要也不会直接绑定 loss。
 
 > [!warning] 当前边界
-> 当前已验证直接构造张量的一次完整批量更新，也已验证回放样本对象到五个张量的字段组装；正在学习把随机抽样直接接入更新。还没有多层神经网络、完整 episode 训练、检查点或独立评估。
+> 当前已验证回放抽样、批量更新、定期目标同步和预填充时间线。正在学习真实 CartPole 经验的来源与时间对齐；还没有让 CartPole 四项观察进入网络训练，也没有检查点或独立评估。

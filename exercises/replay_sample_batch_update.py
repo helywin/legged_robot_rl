@@ -189,19 +189,21 @@ def train_from_replay(
     torch.Tensor,
 ]:
     """抽样、组装张量，再完成一次在线网络更新。"""
-    # TODO 1：调用 replay_buffer.sample(...)。
+    # 1：调用 replay_buffer.sample(...)。
     # 完整接口已写在文件顶部，返回经验对象列表。
+    vec = replay_buffer.sample(batch_size, random_generator)
 
-    # TODO 2：调用 transitions_to_tensors(...)。
+    # 2：调用 transitions_to_tensors(...)。
     # 按 observations、actions、rewards、next_observations、
     # terminated 的顺序取出五个张量。
+    observations, actions, rewards, next_observations, terminated = transitions_to_tensors(vec)
 
-    # TODO 3：调用 full_batch_dqn_update(...)。
+
+    # 3：调用 full_batch_dqn_update(...)。
     # 传入原有三个训练对象、五个张量和 discount_factor，
     # 直接返回它的返回值。
-    raise NotImplementedError(
-        "请按文件顶部的完整接口依次连接三个函数"
-    )
+
+    return full_batch_dqn_update(online_network, target_network, optimizer, observations, actions, rewards, next_observations, terminated, discount_factor)
 
 
 def make_replay_buffer() -> VectorReplayBuffer:

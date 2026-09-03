@@ -7,15 +7,16 @@ tags:
   - reinforcement-learning/python
   - reinforcement-learning/pytorch
   - reinforcement-learning/dqn
-status: learning
+status: completed
 created: 2026-09-02
-updated: 2026-09-02
+updated: 2026-09-03
 related:
   - "[[054-replay-samples-to-tensors]]"
   - "[[053-pytorch-full-batch-dqn-update]]"
   - "[[概念/经验回放]]"
   - "[[概念/回放样本的字段批量化]]"
   - "[[概念/DQN训练流程]]"
+  - "[[056-periodic-target-network-sync]]"
   - "[[学习主页]]"
 ---
 
@@ -275,8 +276,11 @@ loss = (0.1600 + 1.1236) / 2 = 0.6418
 > [!success] 已有前置证据
 > 学习者已完成第 54 课：五个张量的 shape、dtype、行对齐、单样本批次维和输入不变性全部通过。
 
-> [!warning] 本课尚未完成
-> 当前还没有学习者把随机抽样、字段组装和批量更新亲手连起来。也没有目标网络定期同步、完整 episode、CartPole 冒烟训练、检查点或独立评估。
+> [!success] 学习者练习结果
+> 学习者已亲手调用 `sample()`，将返回的经验列表解包为五个张量，并交给完整批量更新函数。实际运行确认抽样顺序为缓冲区位置 1、0，字段行对齐、`loss=0.6418`、在线参数改变、目标参数和缓冲区不变全部通过。
+
+> [!warning] 尚未验证
+> 当前还没有目标网络定期同步、完整 episode、CartPole 冒烟训练、检查点或独立评估。
 
 ## 一句话总结
 
@@ -287,4 +291,4 @@ loss = (0.1600 + 1.1236) / 2 = 0.6418
 - 前置数据组装：[[054-replay-samples-to-tensors|回放样本怎样变成批量张量]]
 - 前置更新：[[053-pytorch-full-batch-dqn-update|完整批量 DQN 更新]]
 - 总流程：[[概念/DQN训练流程]]
-- 下一课：目标网络为什么只按间隔同步
+- 下一课：[[056-periodic-target-network-sync|目标网络为什么只按间隔同步]]
