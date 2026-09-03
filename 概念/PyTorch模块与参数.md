@@ -9,13 +9,14 @@ tags:
   - reinforcement-learning/pytorch
 status: learned
 created: 2026-09-01
-updated: 2026-09-01
+updated: 2026-09-03
 related:
   - "[[概念/Python类与对象]]"
   - "[[概念/PyTorch张量]]"
   - "[[概念/神经网络参数与预测]]"
   - "[[概念/自动求导与梯度]]"
   - "[[041-pytorch-module-forward]]"
+  - "[[060-cartpole-four-input-linear-q-network]]"
 ---
 
 # PyTorch 模块与参数
@@ -36,6 +37,7 @@ related:
 - `forward()` 只描述前向计算，不负责修改参数；
 - 调用 `model(observation)` 不等于训练；
 - VS Code/Pylance 不能从通用 `nn.Module.__call__` 推断具体输出时，可以在教学模型中添加带张量类型的 `__call__`，但实现仍须委托给 `super().__call__()`；
+- 未完成脚手架尚未给 `self.layer` 赋值时，Pylance 可能依据 `nn.Module` 的动态属性规则推断为 `Tensor | Module`；可以先写 `layer: nn.Linear` 明确属性类型，但这只是静态承诺，运行时仍必须在 `__init__()` 中执行 `self.layer = nn.Linear(...)`；
 - 损失、自动求导和优化器属于后续概念。
 
 ## 对应课程与代码

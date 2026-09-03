@@ -7,7 +7,7 @@ tags:
   - reinforcement-learning/python
   - reinforcement-learning/environment
   - reinforcement-learning/dqn
-status: learning
+status: completed
 created: 2026-09-03
 updated: 2026-09-03
 related:
@@ -264,11 +264,11 @@ observation: tuple[float, ...]
 
 ## 当前边界
 
-> [!success] 已有证据
-> 教师参考路径已真实启动 Gymnasium 1.3.0 的 `CartPole-v1`，固定种子的三步字段、观察首尾链以及终止后停止调用的检查均通过。
+> [!success] 学习者练习结果
+> 学习者已把真实 `reset/step` 返回值组成 `VectorTransition`。实际运行确认三条经验、动作和奖励顺序、第一步真实数值、相邻观察首尾链、缓冲区快照以及终止后立即停止 `step()` 全部通过。
 
-> [!warning] 本课尚未完成
-> 当前尚未看到学习者实现。固定动作只用于采集数据，不是探索策略；本课也没有抽样更新、完整 episode、CartPole 冒烟训练、检查点或独立评估。
+> [!warning] 尚未验证
+> 固定动作只用于采集数据，不是探索策略；本课也没有让 CartPole 四项观察进入网络、执行抽样更新、完成 episode、保存检查点或独立评估。
 
 ## 一句话总结
 
@@ -280,4 +280,4 @@ observation: tuple[float, ...]
 - 环境接口：[[概念/标准环境接口]]
 - 经验结构：[[概念/环境交互到经验记录]]
 - 回放缓冲区：[[概念/经验回放]]
-- 下一课：网络怎样接收 CartPole 的四项观察
+- 下一课：[[060-cartpole-four-input-linear-q-network|CartPole 四项观察怎样变成两个动作 Q 值]]

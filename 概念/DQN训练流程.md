@@ -27,6 +27,9 @@ related:
   - "[[057-repeated-replay-updates]]"
   - "[[058-replay-warmup]]"
   - "[[059-cartpole-step-to-transition]]"
+  - "[[060-cartpole-four-input-linear-q-network]]"
+  - "[[061-linear-limit-relu-hidden-layer]]"
+  - "[[062-gradient-through-output-and-relu]]"
 ---
 
 # DQN 训练流程
@@ -69,8 +72,11 @@ related:
 - 多次回放更新循环：[[057-repeated-replay-updates|每轮更新后按真实更新编号判断目标同步]]
 - 回放预填充：[[058-replay-warmup|先加入新经验，达到门槛后才允许更新]]
 - 真实经验来源：[[059-cartpole-step-to-transition|把动作前观察和同一次 step 的后果组成经验]]
+- CartPole 预测入口：[[060-cartpole-four-input-linear-q-network|把四项观察映射成两个动作 Q 值]]
+- 非线性隐藏表示：[[061-linear-limit-relu-hidden-layer|在线性层之间用 ReLU 形成分段计算路径]]
+- 多层梯度路径：[[062-gradient-through-output-and-relu|让所选动作的 loss 穿过输出层与 ReLU]]
 
 PyTorch 实现已经把单条经验的两条支路实际拼接：在线网络的 `selected_q` 保留梯度，目标网络的 `target_q` 不保留梯度。`loss` 通过本轮计算图连到在线参数，`backward()` 把梯度写入这些参数的 `.grad`，只管理在线参数的 optimizer 再读取 `.grad` 并修改在线参数。optimizer 不需要也不会直接绑定 loss。
 
 > [!warning] 当前边界
-> 当前已验证回放抽样、批量更新、定期目标同步和预填充时间线。正在学习真实 CartPole 经验的来源与时间对齐；还没有让 CartPole 四项观察进入网络训练，也没有检查点或独立评估。
+> 当前已验证回放、预填充、真实 CartPole 经验采集、四输入两输出预测和 ReLU 隐藏表示。正在逐层验证多层网络的梯度路径；还没有让这个 CartPole 网络执行完整训练、保存检查点或独立评估。
