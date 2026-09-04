@@ -10,7 +10,7 @@ tags:
   - reinforcement-learning/neural-network
 status: learning
 created: 2026-09-02
-updated: 2026-09-02
+updated: 2026-09-04
 related:
   - "[[概念/DQN与神经网络估值]]"
   - "[[概念/DQN训练流程]]"
@@ -19,6 +19,7 @@ related:
   - "[[概念/DQN目标Q值]]"
   - "[[概念/所选动作Q值与索引]]"
   - "[[049-pytorch-one-dqn-update]]"
+  - "[[066-first-real-cartpole-dqn-smoke-training]]"
 ---
 
 # DQN 完整训练流程与公式
@@ -106,57 +107,56 @@ $$
 
 下面是从初始化到完成训练预算的总流程。图中“回合结束”通常表示 `terminated` 或 `truncated` 为真；但是计算 target 时，只有 `terminated=True` 才去掉未来价值。
 
-```plantuml-svg
+```plantuml
 @startuml
-skinparam backgroundColor transparent
-skinparam defaultFontColor #1F2937
-skinparam ArrowColor #6B7280
-skinparam ArrowFontColor #2563EB
-skinparam ArrowFontSize 16
-skinparam activity {
-  BackgroundColor #EAF2FF
-  BorderColor #4C6A92
-  FontColor #1F2937
-  DiamondBackgroundColor #FFF2CC
-  DiamondBorderColor #9A7B24
-  DiamondFontColor #1F2937
-}
+top to bottom direction
 
-start
-:创建在线网络 Q_online，参数为 theta;
-:复制在线参数到目标网络\ntheta_target <- theta;
-:创建经验回放缓冲区;
+rectangle "创建在线网络 Q_online\n复制参数到目标网络\n创建 replay buffer" as Init
+rectangle "环境 reset\n得到观察 s" as Reset
+rectangle "训练预算\n还有剩余？" as Budget
+rectangle "Q_online(s) 输出动作 Q 值\nepsilon-greedy 选择动作 a" as Choose
+rectangle "env.step(a)\n得到 r、s_next、terminated、truncated" as Step
+rectangle "保存经验\n(s, a, r, s_next, terminated)" as Store
+rectangle "buffer 经验\n达到 warmup？" as Enough
+rectangle "随机抽取一批经验\n完成一次在线网络更新" as Update
+rectangle "本步只收集经验" as CollectOnly
+rectangle "到达目标网络\n同步时刻？" as SyncDue
+rectangle "复制参数\ntheta_target <- theta" as Sync
+rectangle "目标网络保持不变" as KeepTarget
+rectangle "当前 episode\n结束？" as EpisodeDone
+rectangle "记录本局 return\nenv.reset()" as ResetEpisode
+rectangle "s <- s_next" as ContinueEpisode
+rectangle "冻结在线参数\n保存 PyTorch 检查点" as Save
+rectangle "只保留在线网络前向计算\n导出 ONNX" as Export
+rectangle "ONNX checker\n检查模型结构" as Check
+rectangle "关闭探索和参数更新\n独立冻结评估" as Evaluate
+rectangle "ONNX Runtime 与 PyTorch\n对同一批观察做数值对照" as Compare
+rectangle "GUI 加载检查点\n贪心动作回放" as Watch
 
-while (训练预算还没有用完？) is (是：继续训练)
-  :环境 reset，得到初始观察 s;
-
-  while (当前回合还没有结束？) is (是：继续回合)
-    :在线网络计算 Q_online(s, 所有动作);
-    :epsilon-greedy 选择实际动作 a;
-    :环境执行 a;
-    :得到 r、s_next、terminated、truncated;
-    :保存经验 (s, a, r, s_next, terminated);
-
-    if (缓冲区经验足够开始学习？) then (是：开始学习)
-      :抽取一批经验;
-      :完成一次在线网络更新\n见下一张放大图;
-    else (否：继续积累)
-      :经验还不够\n暂时只收集经验;
-    endif
-
-    if (到达目标网络同步时刻？) then (是：执行同步)
-      :复制参数\ntheta_target <- theta;
-    else (否：暂不同步)
-      :目标网络继续保持不变;
-    endif
-
-    :s <- s_next;
-  endwhile (否：回合结束)
-endwhile (否：训练结束)
-
-:保存检查点;
-:关闭探索和参数更新，独立评估;
-stop
+Init --> Reset
+Reset --> Budget
+Budget --> Choose : 是
+Budget --> Save : 否
+Choose --> Step
+Step --> Store
+Store --> Enough
+Enough --> Update : 是
+Enough --> CollectOnly : 否
+Update --> SyncDue
+SyncDue --> Sync : 是
+SyncDue --> KeepTarget : 否
+Sync --> EpisodeDone
+KeepTarget --> EpisodeDone
+CollectOnly --> EpisodeDone
+EpisodeDone --> ResetEpisode : 是
+EpisodeDone --> ContinueEpisode : 否
+ResetEpisode --> Budget
+ContinueEpisode --> Budget
+Save --> Export
+Export --> Check
+Check --> Evaluate
+Evaluate --> Compare
+Compare --> Watch
 @enduml
 ```
 
@@ -235,52 +235,39 @@ $$
 
 ## 五、一次更新的放大流程图
 
-```plantuml-svg
+```plantuml
 @startuml
-skinparam backgroundColor transparent
-skinparam defaultFontColor #1F2937
-skinparam ArrowColor #6B7280
-skinparam activity {
-  BackgroundColor #EAF2FF
-  BorderColor #4C6A92
-  FontColor #1F2937
-  DiamondBackgroundColor #FFF2CC
-  DiamondBorderColor #9A7B24
-  DiamondFontColor #1F2937
-}
-skinparam note {
-  BackgroundColor #FFF2CC
-  BorderColor #9A7B24
-  FontColor #1F2937
-}
+top to bottom direction
 
-start
-:从回放缓冲区取得经验\n(s, a, r, s_next, terminated);
+rectangle "从 replay buffer 取得一批经验\n(s, a, r, s_next, terminated)" as Batch
+rectangle "旧观察 s" as OldObservation
+rectangle "在线网络 Q_online\n使用参数 theta" as Online
+rectangle "全部动作 Q 值\n按实际动作 a 取 selected_q\n保留计算图" as Selected
+rectangle "下一观察 s_next" as NextObservation
+rectangle "目标网络 Q_target\n使用暂时固定的 theta_target" as Target
+rectangle "在 no_grad 中取最大下一 Q 值\n结合 r、gamma、terminated\n组成 target_q" as TargetValue
+rectangle "mean loss\n(selected_q - target_q)^2" as Loss
+rectangle "loss.backward()\n把梯度写入在线参数 .grad" as Backward
+rectangle "optimizer.step()\n读取 .grad 并修改 theta" as Step
+rectangle "下一次在线预测\n使用更新后的 theta" as NextPrediction
 
-fork
-  :旧观察 s;
-  :在线网络 Q_online\n使用参数 theta;
-  :得到全部动作 Q 值;
-  :按实际动作 a 取出 selected_q\n保留到在线参数的计算图;
-fork again
-  :下一观察 s_next;
-  :目标网络 Q_target\n使用暂时固定的 theta_target;
-  :在 no_grad 中取得最大下一 Q 值;
-  :结合 r、gamma 和 terminated\n组成无梯度 target_q;
-end fork
+Batch --> OldObservation
+OldObservation --> Online
+Online --> Selected
+Batch --> NextObservation
+NextObservation --> Target
+Target --> TargetValue
+Selected --> Loss
+TargetValue --> Loss
+Loss --> Backward
+Backward --> Step
+Step --> NextPrediction
 
-:loss = (selected_q - target_q)^2;
-:loss.backward()\n把梯度写入在线参数 .grad;
-:optimizer.step()\n读取 .grad 并修改在线参数 theta;
-
-note right
+note right of TargetValue
 目标网络不在 optimizer 管理范围内。
 只有到同步时刻才执行：
 theta_target <- theta
 end note
-
-:下一次在线预测使用更新后的 theta;
-stop
 @enduml
 ```
 
@@ -425,13 +412,91 @@ selected_q_after = 0.1726
 → 训练结束后关闭探索和更新，独立评估
 ```
 
+## 十、亲手实现时五段代码各管什么
+
+完整训练代码很长，但真正属于 DQN 因果链的核心只有五段。按照数据第一次出现的顺序读，就不会把变量看成一堆互不相干的名字。
+
+| 顺序 | 函数 | 输入来自哪里 | 它做什么 | 它会改变什么 |
+| ---: | --- | --- | --- | --- |
+| 1 | `CartPoleQNetwork` | 环境的四项观察 | 把观察映射成两个动作 Q 值 | 前向时不改参数；optimizer 更新时参数才变 |
+| 2 | `epsilon_at_step` | 当前 `environment_step` | 算出本步随机探索概率 | 只返回数字，不改环境和网络 |
+| 3 | `choose_training_action` | 观察、Q 值、epsilon | 在随机动作和最大 Q 动作之间选择 | 只决定动作，不训练网络 |
+| 4 | `update_online_network` | replay buffer 抽出的一批经验 | 构造 selected Q、target、loss，反向传播并更新 | 改在线参数；不改目标参数 |
+| 5 | `run_training_loop` | 环境、两个网络、buffer、optimizer | 按时间顺序调用前四段，并负责重置和同步 | 推进环境、增加经验、累计 update、定期改目标参数 |
+
+这五段的调用关系是：
+
+```text
+run_training_loop
+├─ epsilon_at_step
+├─ choose_training_action
+│  └─ CartPoleQNetwork.forward
+├─ environment.step
+├─ ReplayBuffer.add / sample
+├─ update_online_network
+│  ├─ CartPoleQNetwork.forward（在线支路）
+│  ├─ CartPoleQNetwork.forward（目标支路）
+│  ├─ loss.backward
+│  └─ optimizer.step
+└─ target_network.load_state_dict（仅同步时）
+```
+
+其中 `run_training_loop` 是时间线，另外四段是它在不同阶段调用的工具。变量名字应按“它属于哪个阶段”理解，而不是按出现顺序死记。
+
+## 十一、为什么训练完保存 `.pt`，还要导出 ONNX
+
+`.pt` 检查点保存 PyTorch 参数和本次配置，适合继续在 Python/PyTorch 中加载。ONNX 保存的是跨工具更容易读取的**前向推理图**。
+
+本课固定 ONNX 接口：
+
+```text
+输入 observation：float32[batch_size, 4]
+    ↓
+Linear(4, 64) → ReLU → Linear(64, 2)
+    ↓
+输出 q_values：float32[batch_size, 2]
+```
+
+`batch_size` 是动态的，因此外部工具既可以一次输入一条 `[1, 4]` 观察，也可以一次输入多条 `[N, 4]` 观察。
+
+ONNX 中**没有**这些训练组件：
+
+- CartPole 环境；
+- epsilon 随机探索；
+- replay buffer；
+- 目标网络；
+- loss、计算图和 `backward()`；
+- optimizer。
+
+原因不是导出丢失了训练，而是部署时真正要重复的只有：
+
+```text
+当前观察 → 在线 Q 网络 → 两个 Q 值 → 外部程序取 argmax → 执行动作
+```
+
+所以工具看到两个 Q 值后，还需要调用方自己决定如何选动作。冻结评估通常取 `argmax`；如果某个外部工具只展示网络输出，它不会替你推进环境。
+
+### 为什么还要做一次数值对照
+
+“ONNX 文件生成成功”只说明导出器写出了文件。更完整的检查是让 PyTorch 和 ONNX Runtime 接收**完全相同的一批观察**：
+
+```text
+同一批 observation
+├─ PyTorch 网络 ───────→ q_values_pytorch
+└─ ONNX Runtime 网络 ─→ q_values_onnx
+
+检查两边最大绝对误差是否足够小
+```
+
+这验证的是“模型转换没有明显改变前向结果”，不验证策略控制能力。控制能力仍看冻结环境评估和 GUI 回放。
+
 ## 当前边界
 
-> [!info] 静态检查
-> 本文记录标准 DQN 的概念流程、单条经验公式和当前练习中的固定数字。
+> [!info] 已有证据
+> 本文的单次更新链已有学习者练习证据；教师参考实现已经完成真实 CartPole 30,000 环境步冒烟训练、检查点保存和 20 回合冻结评估。
 
 > [!warning] 尚未验证
-> `pytorch_one_dqn_update.py` 的学习者练习已经通过；本文流程图仍不代表已经完成批量经验更新、CartPole 冒烟训练、检查点保存或独立评估。
+> 学习者从 TODO 独立写出的完整训练器、学习者 ONNX 数值对照和本机原生 GUI 回放尚待实际运行。ONNX 与 GUI 都不是真机证据。
 
 ## 关联
 
@@ -439,6 +504,7 @@ selected_q_after = 0.1726
 - 下一练习：[[050-pytorch-batch-selected-q|一批经验怎样逐行取得实际动作 Q 值]]
 - 当前批量练习：[[053-pytorch-full-batch-dqn-update|把在线支路和目标支路合成完整批量 DQN 更新]]
 - 当前数据练习：[[054-replay-samples-to-tensors|回放缓冲区样本怎样组装成批量张量]]
+- 当前完整训练：[[066-first-real-cartpole-dqn-smoke-training|第一次真实 CartPole DQN 冒烟训练]]
 - 简要流程：[[概念/DQN训练流程]]
 - Q 表到神经网络：[[概念/DQN与神经网络估值]]
 - 两个网络：[[概念/目标网络]]

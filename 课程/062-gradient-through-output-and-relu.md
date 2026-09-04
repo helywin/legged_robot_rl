@@ -7,9 +7,9 @@ tags:
   - reinforcement-learning/python
   - reinforcement-learning/pytorch
   - reinforcement-learning/neural-network
-status: learning
+status: learned
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-04
 related:
   - "[[061-linear-limit-relu-hidden-layer]]"
   - "[[概念/ReLU与梯度门控]]"
@@ -358,15 +358,18 @@ hidden_active.retain_grad()
 .venv/bin/python -m exercises.cartpole_relu_gradient_flow
 ```
 
-成功后，把完整输出发给我。本课只有看到学习者实际运行证据才会标记完成。
+学习者已完成本题并由仓库环境复跑通过。
 
 ## 当前边界
 
 > [!success] 教师参考推导
 > 固定数字已经手算到两个中间张量和两层参数的梯度；检查器覆盖动作切换、ReLU 门、零输入列、旧梯度清除和参数不变性。
 
-> [!warning] 本课尚未完成
-> 当前尚未看到学习者实现。`backward()` 只产生梯度，没有 optimizer，因此网络参数没有更新；也没有完整 CartPole 训练、检查点或独立评估。
+> [!success] 学习者训练已通过
+> 学习者实现已连续通过动作 1 和动作 0 两条路径。实际输出确认前向值与 loss、两个隐藏中间梯度、两层参数梯度、旧梯度清除、动作路径切换、ReLU 截断、零输入列、非法动作拒绝和参数不变性共 9 项检查全部通过；仓库全量 112 项测试同时通过。
+
+> [!warning] 当前边界
+> 本课的 `backward()` 只产生梯度，没有 optimizer，因此网络参数没有更新；也没有完整 CartPole 训练、检查点或独立评估。学习者使用的 `model.zero_grad()` 和固定 `float32` target 在当前练习中有效；显式使用 `set_to_none=True` 与 `selected_q.dtype` 会让意图和复用边界更清楚，但不影响本课结论。
 
 ## 一句话总结
 

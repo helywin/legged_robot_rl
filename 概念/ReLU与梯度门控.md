@@ -7,9 +7,9 @@ tags:
   - knowledge-graph/core
   - reinforcement-learning/neural-network
   - reinforcement-learning/pytorch
-status: learning
+status: learned
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-04
 related:
   - "[[概念/隐藏层与非线性]]"
   - "[[概念/自动求导与梯度]]"
@@ -69,5 +69,8 @@ ReLU 前梯度      = [ 0.8,  0.0, -1.6]
 - [[062-gradient-through-output-and-relu|梯度怎样穿过输出层和 ReLU 回到隐藏层]]
 - `exercises/cartpole_relu_gradient_flow.py`
 
+> [!success] 学习证据
+> 学习者已经完成两种动作路径的梯度追踪。检查确认：未选动作输出行梯度为 0、ReLU 关闭的隐藏行梯度为 0、零输入对应的隐藏权重列梯度为 0，而且第二次反传没有累加第一次的旧梯度。
+
 > [!warning] 当前边界
-> 教师已完成固定数字推导，学习者练习尚未完成。当前只检查 `backward()` 写入梯度，不包含 optimizer 参数更新或完整 CartPole 训练。
+> 当前只检查 `backward()` 写入梯度，不包含 optimizer 参数更新或完整 CartPole 训练。

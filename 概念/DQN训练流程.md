@@ -8,7 +8,7 @@ tags:
   - reinforcement-learning/dqn
 status: learning
 created: 2026-09-01
-updated: 2026-09-03
+updated: 2026-09-04
 related:
   - "[[概念/DQN与神经网络估值]]"
   - "[[概念/DQN完整训练流程与公式]]"
@@ -30,6 +30,8 @@ related:
   - "[[060-cartpole-four-input-linear-q-network]]"
   - "[[061-linear-limit-relu-hidden-layer]]"
   - "[[062-gradient-through-output-and-relu]]"
+  - "[[063-one-update-affects-many-predictions]]"
+  - "[[概念/共享参数与预测联动]]"
 ---
 
 # DQN 训练流程
@@ -75,8 +77,9 @@ related:
 - CartPole 预测入口：[[060-cartpole-four-input-linear-q-network|把四项观察映射成两个动作 Q 值]]
 - 非线性隐藏表示：[[061-linear-limit-relu-hidden-layer|在线性层之间用 ReLU 形成分段计算路径]]
 - 多层梯度路径：[[062-gradient-through-output-and-relu|让所选动作的 loss 穿过输出层与 ReLU]]
+- 共享参数联动：[[063-one-update-affects-many-predictions|一次更新为何影响多个观察和动作输出]]
 
 PyTorch 实现已经把单条经验的两条支路实际拼接：在线网络的 `selected_q` 保留梯度，目标网络的 `target_q` 不保留梯度。`loss` 通过本轮计算图连到在线参数，`backward()` 把梯度写入这些参数的 `.grad`，只管理在线参数的 optimizer 再读取 `.grad` 并修改在线参数。optimizer 不需要也不会直接绑定 loss。
 
 > [!warning] 当前边界
-> 当前已验证回放、预填充、真实 CartPole 经验采集、四输入两输出预测和 ReLU 隐藏表示。正在逐层验证多层网络的梯度路径；还没有让这个 CartPole 网络执行完整训练、保存检查点或独立评估。
+> 当前已验证回放、预填充、真实 CartPole 经验采集、四输入两输出预测、ReLU 隐藏表示和多层梯度路径。正在验证 optimizer 对共享多层参数及多个观察预测的影响；还没有让这个 CartPole 网络执行完整训练、保存检查点或独立评估。

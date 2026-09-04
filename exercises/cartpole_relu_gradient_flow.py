@@ -167,24 +167,45 @@ def compute_gradient_trace(
     target_q: float,
 ) -> GradientTrace:
     """完成一次反向传播，并返回各阶段的数值与梯度。"""
-    # TODO 1：先验证 action_index。只有动作 0 和动作 1 合法；其他值抛出
-    # ValueError("action_index 必须是 0 或 1")。
+    # 1：先验证 action_index。只有动作 0 和动作 1 合法；其他值抛出
+    if action_index != 0 and action_index != 1:
+        raise ValueError("action_index 必须是 0 或 1")
 
-    # TODO 2：清除模型参数上一次留下的梯度。
+    # 2：清除模型参数上一次留下的梯度。
+    model.zero_grad()
 
-    # TODO 3：只调用一次 forward_stages(observation)，取得 hidden_pre、
+    # 3：只调用一次 forward_stages(observation)，取得 hidden_pre、
     # hidden_active 和 q_values。
+    hidden_pre, hidden_active, q_values = model.forward_stages(observation)
 
-    # TODO 4：在 backward() 前，让两个隐藏中间张量保留 .grad。
+    # 4：在 backward() 前，让两个隐藏中间张量保留 .grad。
+    hidden_pre.retain_grad()
+    hidden_active.retain_grad()
 
-    # TODO 5：按 action_index 选择标量 Q 值，创建相同 dtype 的 target，
+    # 5：按 action_index 选择标量 Q 值，创建相同 dtype 的 target，
     # 再用 F.mse_loss() 得到 loss。
+    selected_q = q_values[action_index]
+    target = torch.tensor(target_q, dtype=torch.float32)
+    loss = F.mse_loss(selected_q, target)
 
-    # TODO 6：调用一次 backward()。
+    # 6：调用一次 backward()。
+    loss.backward()
 
-    # TODO 7：构造并返回 GradientTrace。前向的五个字段使用 detach().clone()；
+    # 7：构造并返回 GradientTrace。前向的五个字段使用 detach().clone()；
     # 六个梯度字段全部调用 required_gradient(tensor, "清楚的字段名")。
-    raise NotImplementedError("请完成一次穿过 ReLU 的梯度追踪")
+    return GradientTrace(
+        hidden_pre.detach().clone(),
+        hidden_active.detach().clone(),
+        q_values.detach().clone(),
+        selected_q.detach().clone(),
+        loss.detach().clone(),
+        required_gradient(hidden_pre, "hidden_pre"),
+        required_gradient(hidden_active, "hidden_active"),
+        required_gradient(model.hidden_layer.weight, "hidden_weight"),
+        required_gradient(model.hidden_layer.bias, "hidden_bias"),
+        required_gradient(model.output_layer.weight, "output_weight"),
+        required_gradient(model.output_layer.bias, "output_bias"),
+    )
 
 
 def _allclose(actual: torch.Tensor, expected: torch.Tensor) -> bool:
