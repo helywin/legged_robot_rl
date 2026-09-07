@@ -1,6 +1,6 @@
 ---
 title: reset重置环境但不重置学习
-status: learning
+status: completed
 created: 2026-09-07
 tags:
   - reinforcement-learning/environment
@@ -80,3 +80,5 @@ print(false_velocity)  # 预期 -400.0
 一句话：**reset重新摆好场景，不抹掉策略的学习；新旧回合的观察不能伪装成连续运动。**
 
 下一概念：真实游戏接口能读取哪些状态、能控制哪些动作。
+
+2026-09-07：学习者要求继续，进入072。此处完成指原理课推进，不代表真实游戏reset已经验证。
