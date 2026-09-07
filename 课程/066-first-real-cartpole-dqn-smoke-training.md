@@ -7,7 +7,7 @@ tags:
   - reinforcement-learning/dqn
   - reinforcement-learning/cartpole
   - reinforcement-learning/experiment
-status: learning
+status: completed
 created: 2026-09-04
 updated: 2026-09-04
 related:
@@ -21,6 +21,8 @@ related:
 ---
 
 # 第一次真实 CartPole DQN 冒烟训练
+
+> 2026-09-07 收尾：学习者已完成训练核心、保存与回放，并进入奖励对照。课程实作完成；CartPole 最终100回合验收未完成，依学习者要求暂不继续调参。以下待办式措辞保留为原始教学步骤，不代表当前尚未动手。
 
 ## 本课终于训练什么
 
@@ -297,6 +299,10 @@ ONNX 结构检查：PASS
 ```
 
 ### 最后用 UI 看策略实际控制
+
+诊断窗口显示动作前后的状态、两个 Q 值、动作和终止原因。空格暂停/继续，暂停时右箭头单步，Esc 退出。场景与诊断区合成后每帧只刷新一次。
+
+学习者已经生成训练指标，平均回报为 253.6；此前轨迹诊断发现 20 回合均先越过右侧轨道边界。现象解释和下一步优化思路见 [[概念/CartPole可恢复状态与控制余量]]。
 
 ```bash
 .venv/bin/python experiments/2026-09-04-cartpole-dqn-smoke/watch.py

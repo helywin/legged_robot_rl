@@ -43,6 +43,7 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
@@ -62,16 +63,16 @@ class TrainingConfig:
     """本次受控实验的固定条件；第一次实现时不要修改。"""
 
     seed: int = 20260904
-    total_environment_steps: int = 30_000
-    replay_capacity: int = 30_000
+    total_environment_steps: int = 100_000
+    replay_capacity: int = 100_000
     warmup_steps: int = 1_000
     batch_size: int = 64
     discount_factor: float = 0.99
-    learning_rate: float = 0.001
+    learning_rate: float = 0.0001
     target_sync_interval: int = 500
     epsilon_start: float = 1.0
     epsilon_end: float = 0.05
-    epsilon_decay_steps: int = 20_000
+    epsilon_decay_steps: int = int(total_environment_steps * 2/3)
     evaluation_episodes: int = 20
     smoke_success_mean_return: float = 200.0
 
@@ -335,6 +336,7 @@ def run_training_loop(
     optimizer: torch.optim.Optimizer,
     replay_buffer: ReplayBuffer,
     random_generator: random.Random,
+    reward_transform: Callable[[float, np.ndarray], float] | None = None,
 ) -> TrainingLoopResult:
     """连接训练的五种状态变化，直到环境步预算用完。
 
@@ -404,10 +406,16 @@ def run_training_loop(
             action = choose_training_action(online_network, observation, epsilon, random_generator)
             next_observation, reward, terminated, truncated, _info = environment.step(action)
 
+            # 训练经验可以使用加工后的奖励；日志仍累计环境原始奖励。
+            learning_reward = (
+                float(reward) if reward_transform is None
+                else reward_transform(float(reward), next_observation)
+            )
+
             replay_buffer.add(Transition(
                 observation,
                 action,
-                float(reward),
+                learning_reward,
                 next_observation,
                 terminated
             ))
@@ -494,7 +502,11 @@ def export_network_to_onnx(
         network.train(was_training)
 
 
-def train_and_save(config: TrainingConfig) -> dict[str, object]:
+def train_and_save(
+    config: TrainingConfig,
+    reward_transform: Callable[[float, np.ndarray], float] | None = None,
+    artifact_directory: Path | None = None,
+) -> dict[str, object]:
     """搭好固定基础设施，调用学习者写的核心，再评估和保存。"""
     set_reproducible_seed(config.seed)
     random_generator = random.Random(config.seed)
@@ -523,6 +535,7 @@ def train_and_save(config: TrainingConfig) -> dict[str, object]:
         optimizer,
         replay_buffer,
         random_generator,
+        reward_transform,
     )
 
     trained_returns = evaluate_frozen_policy(
@@ -534,7 +547,7 @@ def train_and_save(config: TrainingConfig) -> dict[str, object]:
     trained_mean = fmean(trained_returns)
     smoke_passed = trained_mean >= config.smoke_success_mean_return
 
-    artifact_directory = (
+    artifact_directory = artifact_directory or (
         Path(__file__).resolve().parents[2]
         / "artifacts"
         / "cartpole-dqn-from-scratch"
