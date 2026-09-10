@@ -51,6 +51,7 @@ sync_target()：将online.state_dict()复制到target，不得写成target=onlin
 目标显式同步生效。通过表示更新机制成立，不是游戏策略已训练成功。
 """
 from dataclasses import dataclass
+import random
 import torch
 from torch import nn
 from torch.optim import Optimizer
@@ -82,6 +83,7 @@ class Agent:
         target: nn.Module,
         optimizer: Optimizer,
         gamma: float = 0.99,
+        exploration_seed: int = 11,
     ) -> None:
         if online is target:
             raise ValueError('online与target必须是独立网络')
@@ -92,6 +94,7 @@ class Agent:
         self.optimizer: Optimizer = optimizer
         self.gamma: float = gamma
         self.updates: int = 0
+        self._exploration_rng: random.Random = random.Random(exploration_seed)
         # 目标的初始权重由调用者准备；这里不覆盖检查器给定的小数据。
         self.target.requires_grad_(False)
         self.target.eval()
@@ -105,7 +108,7 @@ class Agent:
             future_mask = (~batch.terminated).to(dtype=torch.float32)
             target_best_q = batch.rewards + target_q.max(dim=1).values * future_mask * self.gamma
 
-        losses = (target_best_q - selected_q_values) ** 2
+        losses = F.mse_loss(target_best_q, selected_q_values)
         mean_loss = losses.mean()
         self.optimizer.zero_grad()
         mean_loss.backward()
@@ -119,6 +122,36 @@ class Agent:
             self.updates)
 
         
+
+    def act(self, observation: list[float], epsilon: float) -> int:
+        """根据当前观察，决定这一步做哪个动作，返回动作编号int。
+
+        1. 看局面：用online算出各个动作的Q值。
+        2. 决定是否探索：按epsilon概率随机选，否则选Q值最大的动作。
+        3. 返回选中的动作编号。这里只作决定，不执行游戏、不更新网络。
+
+        例如Q=[0.1, 0.5, 0.2]：按预测选就是动作1；探索则可选0、1、2。
+        epsilon=0.2表示每次有20%的概率探索，不是只处理epsilon等于0或1。
+
+        接口约定：epsilon在[0,1]，观察非空；输入float32的[1,N]张量，
+        前向用no_grad。动作数从输出取得；随机使用self._exploration_rng，
+        贪心平局取第一个最大值，返回Python int。非法输入抛ValueError。
+        """
+        if not 0 <= epsilon <= 1:
+            raise ValueError("epsilon只允许0-1内")
+            
+        if not observation:
+            raise ValueError("观察不能为空")
+
+        with torch.no_grad():
+            q_values : torch.Tensor = self.online(torch.tensor(observation, dtype=torch.float32).unsqueeze(0))
+
+        action_count = q_values.shape[1]
+
+        if self._exploration_rng.random() < epsilon:
+            return self._exploration_rng.randrange(action_count)
+        else:
+            return int(q_values.argmax(dim=1).item())
 
     def sync_target(self) -> None:
         self.target.load_state_dict(self.online.state_dict())
