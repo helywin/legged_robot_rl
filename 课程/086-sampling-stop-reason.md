@@ -1,6 +1,6 @@
 ---
 title: 采样结果怎样明确说明为什么停止
-status: learning
+status: completed
 created: 2026-09-09
 tags:
   - reinforcement-learning/environment
@@ -49,3 +49,5 @@ Python的(4,)*2得到(4,4)，这里乘法只是重复tuple元素，与函数签�
 ## 证据与下一步
 
 教师入口运行得到友好的未完成提示，无学习者新实现，保持learning。沿用084已验证的轨迹手算，不跑原生游戏或网络训练。下一概念：将原生游戏Action接口适配到这个采样器，分批采集真实经验。
+
+2026-09-10：学习者实现collect_batch，实际运行全部离线检查通过，包括分批接续、预算恰好等于终止步数、提前终止与动作传递。使用batch[len(batch)-1]访问最后一条正确。086完成，进入[[087-real-game-sampling-batches]]。

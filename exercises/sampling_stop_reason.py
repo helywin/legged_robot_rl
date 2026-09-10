@@ -55,8 +55,13 @@ class SamplingBatch:
 def collect_batch(game: ScriptedGame, action_id: int, max_decisions: int) -> SamplingBatch:
     if type(max_decisions) is not int or max_decisions <= 0:
         raise ValueError("max_decisions必须是正整数")
-    # TODO：复用collect_transitions采样，读取真实末条标记，返回经验与停止原因。
-    raise NotImplementedError("请连接已有采样器，并在返回值中明确停止原因")
+    # 复用collect_transitions采样，读取真实末条标记，返回经验与停止原因。
+    action_ids = (action_id,) * max_decisions
+    batch = collect_transitions(game, action_ids)
+    if batch[len(batch) - 1].terminated:
+        return SamplingBatch(batch, "terminated")
+    else:
+        return SamplingBatch(batch, "batch_limit")
 
 
 def show(label, batch):
