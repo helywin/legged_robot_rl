@@ -1,6 +1,6 @@
 # Chromium DQN 独立实作项目
 
-状态：框架设计完成，功能尚未实现。Python从零编写，不复制或导入旧课程实现。旧文件保留为历史记录。
+状态：原生reset/seed已补齐并推送，新runtime已从零实现且通过真实游戏/故障检查；Task由学习者实现后按其要求由教师补齐，逻辑检查及教师运行的真实两回合已通过；DQN尚未实现。Python从零编写，不复制或导入旧课程实现。旧文件保留为历史记录。
 
 本项目的隔离指代码、配置与运行产物隔离；仍使用仓库`.venv/bin/python`及根目录`pyproject.toml`管理依赖。外部依赖只有通用库和C++游戏可执行程序。沿用游戏协议，但重新实现本项目的Python通信层，不依赖旧`chromium_rl`客户端。不重写游戏本体。
 
@@ -83,7 +83,7 @@ train / evaluate / play       组织流程，管理运行与产物
 
 这三段不另开碎片课程，也不要求所有模块一次写完。091解释本次真实更新，092实现完整评测，093诊断，094单因素修改，095重复验证与续训，096扩展关卡，097阶段验收。
 
-教师提供的每个练习文件必须写清场景、接口、修改位置、运行命令与成功条件；提供脚手架时不提前填核心答案。当前没有训练入口，因此不提供虚构的运行命令。
+教师提供的每个练习文件必须写清场景、接口、修改位置、运行命令与成功条件；提供脚手架时不提前填核心答案。当前没有训练入口。已有通信演示和Task练习检查命令见下方。
 
 ## 验证边界
 
@@ -92,4 +92,33 @@ train / evaluate / play       组织流程，管理运行与产物
 - 原生验证覆盖reset/seed、动作释放与开火、ticks/render、首版观察、真实得分/损命/终止、连续开局及资源清理。模拟通信测试不能代替这些证据。
 - 短训练验证闭环，独立评测判断策略能力，两者分别记录。
 
-目前仅完成目录与设计文档，以上功能及原生验证均不能记为本项目已完成。
+当前实现和证据以runtime-readiness.md为准；Task及DQN仍未完成。
+
+## 当前动手入口
+
+从仓库根目录运行：
+
+```bash
+.venv/bin/python exercises/chromium_dqn/runtime.py
+.venv/bin/python exercises/chromium_dqn/check_task.py
+# 四个TODO完成且逻辑检查通过后，运行真实游戏：
+.venv/bin/python exercises/chromium_dqn/check_task.py --native
+```
+
+`task.py`顶部包含完整题目、首版62项观察与奖励规格、返回值和错误处理要求。四个TODO由学习者实现，教师检查器不含答案。`runtime.py`是教师底层工程演示，不算学习者完成训练。
+
+新runtime检查：
+
+```bash
+RUN_CHROMIUM_GUI_TESTS=1 .venv/bin/python -m unittest discover -s exercises/chromium_dqn/tests -v
+```
+
+## 第二工作段：一次真正的学习更新
+
+Task完成后，当前动手入口为`network.py`和`agent.py`；核心TODO由学习者实现，完整输入输出与手算示例在文件顶部。运行：
+
+```bash
+.venv/bin/python exercises/chromium_dqn/check_update.py
+```
+
+检查器注入固定两条经验，验证真实参数更新，不提供替代答案。当前脚手架尚未完成，不能称为已开始游戏训练。
