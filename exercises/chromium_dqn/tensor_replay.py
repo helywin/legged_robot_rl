@@ -10,6 +10,7 @@ class TensorReplay:
     def __init__(self, capacity: int, observation_size: int, seed: int = 7) -> None:
         if capacity <= 0 or observation_size <= 0:
             raise ValueError('容量与观察维数必须为正')
+        self.observation_size: int = observation_size
         self.capacity: int = capacity
         self._size: int = 0
         self._next: int = 0
@@ -30,6 +31,8 @@ class TensorReplay:
         return self._size
 
     def add(self, row: Transition) -> None:
+        if len(row.observation) != self.observation_size or len(row.next_observation) != self.observation_size:
+            raise ValueError("经验观察维数不匹配，禁止广播填充")
         index: int = self._next
         for view, value in zip(self._write_views, (
             row.observation, row.action, row.reward, row.next_observation,

@@ -13,11 +13,12 @@ from agent import Agent, Batch, UpdateStats
 
 
 class _SGDUpdate(nn.Module):
-    def __init__(self, online: nn.Module, target: nn.Module) -> None:
+    def __init__(self, online: nn.Module, target: nn.Module, loss_kind: str) -> None:
         super().__init__()
         self.online = online
         self.target = target
         self.params = list(online.parameters())
+        self.loss_kind = loss_kind
 
     def forward(self, observations: Tensor, actions: Tensor, rewards: Tensor,
                 next_observations: Tensor, terminated: Tensor,
@@ -26,7 +27,10 @@ class _SGDUpdate(nn.Module):
         with torch.no_grad():
             future = self.target(next_observations).max(1).values
             expected = rewards + future * (~terminated).float() * gamma
-        loss = torch.nn.functional.mse_loss(expected, selected)
+        loss = (torch.nn.functional.smooth_l1_loss(selected, expected)
+                if self.loss_kind == "huber" else torch.nn.functional.mse_loss(expected, selected))
+        if not bool(torch.isfinite(loss)):
+            raise RuntimeError("训练损失非有限，拒绝继续更新参数")
         gradients = torch.autograd.grad([loss], self.params)
         with torch.no_grad():
             for parameter, gradient in zip(self.params, gradients):
@@ -38,8 +42,8 @@ class _SGDUpdate(nn.Module):
 class ScriptedSGDAgent(Agent):
     def __init__(self, online: nn.Module, target: nn.Module,
                  optimizer: torch.optim.Optimizer, gamma: float = 0.99,
-                 exploration_seed: int = 11) -> None:
-        super().__init__(online, target, optimizer, gamma, exploration_seed)
+                 exploration_seed: int = 11, loss_kind: str = "mse") -> None:
+        super().__init__(online, target, optimizer, gamma, exploration_seed, loss_kind)
         if type(optimizer) is not torch.optim.SGD or len(optimizer.param_groups) != 1:
             raise ValueError('编译更新仅支持一个参数组的普通SGD')
         group = optimizer.param_groups[0]
@@ -52,7 +56,7 @@ class ScriptedSGDAgent(Agent):
         if any(p.device.type != 'cpu' or p.dtype != torch.float32 or not p.requires_grad
                for p in parameters):
             raise ValueError('编译更新仅支持CPU float32可训练参数')
-        self._kernel = torch.jit.script(_SGDUpdate(online, target))
+        self._kernel = torch.jit.script(_SGDUpdate(online, target, loss_kind))
 
     def update(self, batch: Batch) -> UpdateStats:
         loss, prediction, expected = self._kernel(

@@ -54,7 +54,7 @@ import torch
 from task import observation_size_for
 from network import QNetwork
 from runtime import Runtime
-from task import GameTask, TASK_VERSION, OBSERVATION_SIZE, ACTION_COUNT, TICKS
+from task import GameTask, TASK_VERSION, OBSERVATION_SIZE, action_count_for, TICKS
 
 
 @dataclass(frozen=True)
@@ -160,11 +160,12 @@ def run_comparison(checkpoint: Path, seed_start: int = 30001) -> None:
     if not 0 <= seed_start <= 4294967295 - 19:
         raise ValueError("评测起始种子须允许连续20个uint32种子")
     saved = torch.load(checkpoint, map_location='cpu', weights_only=True)
+    action_count: int = action_count_for(saved['task_version'])
     for key, expected in dict(observation_size=observation_size_for(saved['task_version']),
-                              action_count=ACTION_COUNT, ticks=TICKS).items():
+                              action_count=action_count, ticks=TICKS).items():
         if saved.get(key) != expected:
             raise ValueError(f'检查点任务规格不匹配：{key}')
-    network = QNetwork(saved['observation_size'], ACTION_COUNT)
+    network = QNetwork(saved['observation_size'], action_count)
     network.load_state_dict(saved['online'], strict=True)
     network.eval()
     if not all(torch.isfinite(p).all().item() for p in network.parameters()):
@@ -178,7 +179,7 @@ def run_comparison(checkpoint: Path, seed_start: int = 30001) -> None:
         source_sha256={name: hashlib.sha256((Path(__file__).parent/name).read_bytes()).hexdigest()
                        for name in ("task.py", "network.py", "runtime.py", "evaluate.py")},
         game_seeds=seeds, random_action_seed_offset=100000, task_version=saved['task_version'],
-        episode_limit=saved['config']['episode_limit'], ticks=TICKS, actions=ACTION_COUNT,
+        episode_limit=saved['config']['episode_limit'], ticks=TICKS, actions=action_count,
         native_version=saved['native_version']), indent=2))
     print('评测预算：模型/随机各20局，共40局；每局上限', saved['config']['episode_limit'], '决策；不更新参数。')
     print('输出目录：', destination)
@@ -198,7 +199,7 @@ def run_comparison(checkpoint: Path, seed_start: int = 30001) -> None:
                 for seed in seeds:
                     rng = random.Random(100000+seed)
                     def random_action(observation: list[float]) -> int:
-                        return rng.randrange(ACTION_COUNT)
+                        return rng.randrange(action_count)
                     chooser = model_action if name == 'model' else random_action
                     result = evaluate_episode(task, chooser, seed)
                     groups[name].append(result)
@@ -220,7 +221,7 @@ if __name__ == '__main__':
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--check', action='store_true')
     mode.add_argument('--run', action='store_true')
-    parser.add_argument('--checkpoint', type=Path, default=Path(__file__).parent/'runs/train-06fbbc3a5a1c4ff78afc7ffabb1586c1/policy.pt')
+    parser.add_argument('--checkpoint', type=Path)
     parser.add_argument('--seed-start', type=int, default=30001, help='连续20局起始种子，默认30001；须避开训练开局')
     args = parser.parse_args()
     torch.set_num_threads(1)
@@ -229,6 +230,8 @@ if __name__ == '__main__':
             from check_evaluate import checks
             checks()
         else:
+            if args.checkpoint is None:
+                parser.error('--run必须明确指定--checkpoint，避免误用旧权重')
             run_comparison(args.checkpoint, args.seed_start)
     except NotImplementedError as error:
         print('评测实作尚未完成：', error)

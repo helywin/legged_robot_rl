@@ -84,11 +84,15 @@ class Agent:
         optimizer: Optimizer,
         gamma: float = 0.99,
         exploration_seed: int = 11,
+        loss_kind: str = "mse",
     ) -> None:
         if online is target:
             raise ValueError('online与target必须是独立网络')
         if not 0 <= gamma <= 1:
             raise ValueError('gamma应在0到1之间')
+        if loss_kind not in ("mse", "huber"):
+            raise ValueError("loss_kind必须是mse或huber")
+        self.loss_kind: str = loss_kind
         self.online: nn.Module = online
         self.target: nn.Module = target
         self.optimizer: Optimizer = optimizer
@@ -108,8 +112,11 @@ class Agent:
             future_mask = (~batch.terminated).to(dtype=torch.float32)
             target_best_q = batch.rewards + target_q.max(dim=1).values * future_mask * self.gamma
 
-        losses = F.mse_loss(target_best_q, selected_q_values)
+        losses = (F.smooth_l1_loss(selected_q_values, target_best_q)
+                  if self.loss_kind == "huber" else F.mse_loss(target_best_q, selected_q_values))
         mean_loss = losses.mean()
+        if not torch.isfinite(mean_loss).item():
+            raise FloatingPointError("训练损失非有限，拒绝继续更新参数")
         self.optimizer.zero_grad()
         mean_loss.backward()
         self.optimizer.step()

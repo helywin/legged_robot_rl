@@ -82,6 +82,7 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path
 from typing import Callable
 import argparse
+import hashlib
 import json
 import shlex
 import time
@@ -91,19 +92,21 @@ from uuid import uuid4
 import torch
 from agent import Agent
 from network import QNetwork
+from network_health import inspect_network
 from replay import Replay, Transition
 from tensor_replay import TensorReplay
 from runtime import Runtime
-from task import GameTask, ResetResult, StepResult, TASK_VERSION, HIT_TASK_VERSION, TRAIN_TASK_VERSIONS, observation_size_for, ACTION_COUNT, TICKS
+from task import GameTask, ResetResult, StepResult, TASK_VERSION, HIT_TASK_VERSION, TRAIN_TASK_VERSIONS, observation_size_for, action_count_for, FIVE_ACTION_TASK_VERSION, TICKS
 
 
 @dataclass(frozen=True)
 class TrainConfig:
     max_updates: int = 500
     update_backend: str = 'eager'
+    loss_kind: str = 'huber'
     num_envs: int = 1
-    task_version: str = HIT_TASK_VERSION
-    episode_limit: int = 250
+    task_version: str = FIVE_ACTION_TASK_VERSION
+    episode_limit: int = 1000
     capacity: int = 10000
     batch_size: int = 32
     learning_starts: int = 256
@@ -120,6 +123,14 @@ class TrainConfig:
 
 
     def __post_init__(self) -> None:
+        for name in ('max_updates', 'num_envs', 'episode_limit', 'capacity', 'batch_size',
+                     'learning_starts', 'target_sync_every'):
+            if type(getattr(self, name)) is not int or getattr(self, name) <= 0:
+                raise ValueError(f'{name}必须是正整数')
+        if not 0 <= self.gamma <= 1 or not math.isfinite(self.learning_rate) or self.learning_rate <= 0:
+            raise ValueError('gamma须在[0,1]，learning_rate须为有限正数')
+        if not self.batch_size <= self.learning_starts <= self.capacity:
+            raise ValueError('要求batch_size <= learning_starts <= capacity')
         if not 0 <= self.epsilon_end <= self.epsilon_start <= 1:
             raise ValueError('要求0 <= epsilon_end <= epsilon_start <= 1')
         if not 0 < self.epsilon_decay_fraction <= 1:
@@ -337,6 +348,8 @@ class TrainingProgress:
 
 
 def run_native(config: TrainConfig) -> None:
+    if config.loss_kind not in ('mse', 'huber'):
+        raise ValueError('loss_kind必须是mse或huber')
     if config.update_backend not in ('eager', 'scripted'):
         raise ValueError('更新后端必须为eager或scripted')
     if config.task_version not in TRAIN_TASK_VERSIONS:
@@ -346,25 +359,30 @@ def run_native(config: TrainConfig) -> None:
     if not 0 < config.batch_size <= config.learning_starts <= config.capacity:
         raise ValueError('要求批量大小 <= 预填量 <= 经验容量，且均为正')
     observation_size: int = observation_size_for(config.task_version)
+    action_count: int = action_count_for(config.task_version)
     torch.set_num_threads(1)
     torch.manual_seed(config.network_seed)
     destination = Path(__file__).parent / 'runs' / ('train-' + uuid4().hex)
     destination.mkdir(parents=True)
     (destination / 'config.json').write_text(json.dumps(asdict(config), indent=2))
-    online: QNetwork = QNetwork(observation_size, ACTION_COUNT)
-    target: QNetwork = QNetwork(observation_size, ACTION_COUNT)
+    source_hashes = {name: hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
+                     for name in ('train.py', 'task.py', 'agent.py', 'fast_update.py',
+                                  'network.py', 'runtime.py', 'tensor_replay.py', 'network_health.py')}
+    (destination / 'source_sha256.json').write_text(json.dumps(source_hashes, indent=2))
+    online: QNetwork = QNetwork(observation_size, action_count)
+    target: QNetwork = QNetwork(observation_size, action_count)
     optimizer: torch.optim.Optimizer = torch.optim.SGD(online.parameters(), lr=config.learning_rate)
     backend_start: float = time.monotonic()
     if config.update_backend == 'scripted':
         from fast_update import ScriptedSGDAgent
-        agent = ScriptedSGDAgent(online, target, optimizer, config.gamma, config.exploration_seed)
+        agent = ScriptedSGDAgent(online, target, optimizer, config.gamma, config.exploration_seed, config.loss_kind)
     else:
-        agent = Agent(online, target, optimizer, config.gamma, config.exploration_seed)
+        agent = Agent(online, target, optimizer, config.gamma, config.exploration_seed, config.loss_kind)
     backend_init_seconds: float = time.monotonic() - backend_start
     replay = TensorReplay(config.capacity, observation_size, config.replay_seed)
     before = {name: parameter.detach().clone() for name, parameter in online.named_parameters()}
-    print('任务：', config.task_version, '观察维数：', observation_size)
-    print('更新后端：', config.update_backend)
+    print('任务：', config.task_version, '观察维数：', observation_size, '动作数：', action_count)
+    print('更新后端：', config.update_backend, '损失：', config.loss_kind)
     print(f'探索：前{config.learning_starts}次决策全随机；之后{config.epsilon_start:g}→'
           f'{config.epsilon_end:g}，衰减跨度{config.epsilon_decay_decisions}次决策'
           f'（剩余预算的{config.epsilon_decay_fraction:.0%}）；总决策预算{config.total_decisions}')
@@ -377,18 +395,41 @@ def run_native(config: TrainConfig) -> None:
         tasks: list[GameTask] = [GameTask(runtime, max_decisions=config.episode_limit, task_version=config.task_version) for runtime in runtimes]
         progress = TrainingProgress(config.max_updates, config.learning_starts)
         stack.callback(progress.close)
+        health_log = stack.enter_context((destination / 'health.jsonl').open('w'))
+        def save_checkpoint(name: str, updates: int) -> None:
+            torch.save(dict(task_version=config.task_version, observation_size=observation_size,
+                            action_count=action_count, ticks=TICKS, config=asdict(config),
+                            native_version=runtimes[0].implementation, updates=updates, source_sha256=source_hashes,
+                            online=online.state_dict()), destination / name)
         def record(row: dict[str, object]) -> None:
             log.write(json.dumps(row, allow_nan=False) + '\n')
             # 保留逐步日志，但不为每条经验强制刷新文件。
             if int(row['decision']) % 1000 == 0:
                 log.flush()
+            current_updates: int = int(row['updates'])
+            if current_updates > 0 and (current_updates % 1000 == 0 or current_updates == config.max_updates):
+                health = inspect_network(online, replay.observations[:min(len(replay), 256)])
+                health_log.write(json.dumps(dict(updates=current_updates, **health)) + '\n')
+                health_log.flush()
+                if not health['finite'] or health['collapsed']:
+                    save_checkpoint('diagnostic.pt', current_updates)
+                    raise RuntimeError(f'第{current_updates}次更新网络失活或输出非有限，已停止训练；'
+                                       f'查看{destination}/health.jsonl和diagnostic.pt')
+            if current_updates > 0 and current_updates % 10000 == 0:
+                save_checkpoint(f'policy-update-{current_updates:09d}.pt', current_updates)
             progress.update(int(row['updates']), int(row['decision']),
                             force=int(row['updates']) == config.max_updates, reward=float(row['reward']),
                             epsilon=float(row['epsilon']))
-        if config.num_envs == 1:
-            summary = train_loop(tasks[0], agent, replay, config, record)
-        else:
-            summary = vector_train_loop(tasks, agent, replay, config, record)
+        try:
+            if config.num_envs == 1:
+                summary = train_loop(tasks[0], agent, replay, config, record)
+            else:
+                summary = vector_train_loop(tasks, agent, replay, config, record)
+        except Exception as error:
+            save_checkpoint('diagnostic.pt', agent.updates)
+            (destination / 'failure.json').write_text(json.dumps(
+                dict(updates=agent.updates, error=str(error)), ensure_ascii=False, indent=2))
+            raise
         native_version = runtimes[0].implementation
     changed = any(not torch.equal(before[name], value) for name, value in online.named_parameters())
     report = dict(asdict(summary), parameter_changed=changed, elapsed_seconds=time.monotonic()-start,
@@ -400,8 +441,9 @@ def run_native(config: TrainConfig) -> None:
     if summary.updates <= 0 or not changed:
         raise RuntimeError('没有实际更新或参数变化，不能将本次运行记为训练通过')
     torch.save(dict(task_version=config.task_version, observation_size=observation_size,
-                    action_count=ACTION_COUNT, ticks=TICKS, config=asdict(config),
-                    native_version=native_version, online=online.state_dict()), destination / 'policy.pt')
+                    action_count=action_count, ticks=TICKS, config=asdict(config),
+                    native_version=native_version, source_sha256=source_hashes, updates=summary.updates,
+                    online=online.state_dict()), destination / 'policy.pt')
     print(json.dumps(report, indent=2))
     print('已保存推理权重policy.pt；GUI加载回放和策略效果尚待验证。')
     print('评测本次权重：')
@@ -420,10 +462,12 @@ if __name__ == '__main__':
     parser.add_argument('--max-updates', type=int, default=500,
                         help='更新次数上限；094使用4000，其余训练配置保持默认')
     parser.add_argument('--num-envs', type=int, default=1, help='并行游戏进程数；共享一个模型和经验池，默认1')
+    parser.add_argument('--loss-kind', choices=('mse', 'huber'), default='huber',
+                        help='huber抑制大误差对更新的影响；mse用于旧版对照')
     parser.add_argument('--update-backend', choices=('eager', 'scripted'), default='eager',
                         help='eager默认教学版；scripted实验性CPU SGD编译加速')
-    parser.add_argument('--task-version', choices=TRAIN_TASK_VERSIONS, default=HIT_TASK_VERSION,
-                        help='v2分差奖励110维；v3事件奖励110维；v4事件奖励84维；v5另加受伤掉盾惩罚；v6同v5奖励36维；v7逐次子弹伤害奖励（默认）')
+    parser.add_argument('--task-version', choices=TRAIN_TASK_VERSIONS, default=FIVE_ACTION_TASK_VERSION,
+                        help='v2分差奖励110维；v3事件奖励110维；v4事件奖励84维；v5另加受伤掉盾惩罚；v6同v5奖励36维；v7逐次子弹伤害奖励；v8同v7观察奖励、5动作固定开火（默认）')
     args = parser.parse_args()
     if args.num_envs <= 0:
         parser.error('--num-envs必须为正整数')
@@ -435,8 +479,8 @@ if __name__ == '__main__':
             checks()
         elif args.run:
             run_native(TrainConfig(max_updates=args.max_updates, num_envs=args.num_envs,
-                                   task_version=args.task_version, episode_limit=1000,
-                                   update_backend=args.update_backend))
+                                   task_version=args.task_version,
+                                   update_backend=args.update_backend, loss_kind=args.loss_kind))
         else:
             parser.print_help()
     except NotImplementedError as error:

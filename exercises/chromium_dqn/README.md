@@ -1,6 +1,6 @@
 # Chromium DQN 独立实作项目
 
-状态：原生reset/seed已补齐并推送，新runtime已从零实现且通过真实游戏/故障检查；Task由学习者实现后按其要求由教师补齐，逻辑检查及教师运行的真实两回合已通过；DQN尚未实现。Python从零编写，不复制或导入旧课程实现。旧文件保留为历史记录。
+状态：独立DQN训练、无窗口并行游戏、评测和GUI回放均已实现。当前默认task-v8-five-actions：36维观察、5动作固定开火，使用Huber损失；策略效果尚未达到通关要求。旧课程说明保留为历史记录。
 
 本项目的隔离指代码、配置与运行产物隔离；仍使用仓库`.venv/bin/python`及根目录`pyproject.toml`管理依赖。外部依赖只有通用库和C++游戏可执行程序。沿用游戏协议，但重新实现本项目的Python通信层，不依赖旧`chromium_rl`客户端。不重写游戏本体。
 
@@ -276,3 +276,23 @@ v4删除玩家keyboard_motion两项、8颗敌弹的16项速度、4个道具的8�
 拾取+0.2、损命-5、受伤掉盾/100惩罚、过关+20保持不变。
 旧v4/v6显式参数仍选择旧奖励，注意启动版本。
 详细机制与验证：[[experiments/2026-09-11-chromium-reward-redesign/README]]。
+
+## 2026-09-11：五动作与稳定性修复
+
+当前默认任务`task-v8-five-actions`：动作0原地、1上、2下、3左、4右，全部保持开火。没有斜向或停止开火动作。底层通过原生9..13实现，不需要修改C++。固定开火仍会消耗强化武器弹药；原地表示松开移动键，游戏已有惯性不会瞬间清零。
+
+观察36维、奖励与v7一致；网络输出从18项改为5项。训练、评测随机基线、诊断、GUI回放都按检查点任务版本选择动作数量与映射。旧18动作检查点仍可回放；新5动作策略从头训练，不能直接使用旧输出层。
+
+```bash
+.venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 100000 --num-envs 24
+# 使用训练结束打印的真实路径替换PATH：
+.venv/bin/python exercises/chromium_dqn/evaluate.py --run --checkpoint PATH
+.venv/bin/python exercises/chromium_dqn/play.py --run --checkpoint PATH --seed 1
+.venv/bin/python exercises/chromium_dqn/diagnose.py --checkpoint PATH --seed 1
+```
+
+旧模型贴角落已复现为隐藏层全零、各状态Q值完全相同。训练默认损失改为Huber，每1000次更新及最后一次检查真实观察上的隐藏层与输出；失活或非有限值时保存`diagnostic.pt`、`failure.json`并停止。每10000次更新保存`policy-update-XXXXXXXXX.pt`，最终保存`policy.pt`。这些是推理权重，不包含完整断点续训状态。`health.jsonl`记录检测结果，`source_sha256.json`记录训练源码指纹。检测通过不代表学会游戏，也不能覆盖所有策略退化形式。
+
+复现旧任务用`--task-version task-v7-hit-feedback`；旧损失对照用`--loss-kind mse`。比较5与18动作时，两组都使用Huber，其他配置相同，避免混淆动作修改与稳定性修复。
+
+完整证据见[稳定性审计](../../experiments/2026-09-11-chromium-stability-audit/README.md)。

@@ -41,7 +41,7 @@ import torch
 from task import observation_size_for
 from network import QNetwork
 from runtime import Runtime
-from task import GameTask, StepResult, TASK_VERSION, OBSERVATION_SIZE, ACTION_COUNT, TICKS
+from task import GameTask, StepResult, TASK_VERSION, OBSERVATION_SIZE, action_count_for, TICKS
 
 
 @dataclass(frozen=True)
@@ -65,12 +65,12 @@ def play_episode(
     ).unsqueeze(0)
     decisions = 0
     total_reward = 0
-    final_score = ""
+    final_score: float = 0.0
     end_reason = ""
 
     while 1:
         with torch.no_grad():
-            q_values = network.forward(observation)
+            q_values = network(observation)
             best_action = q_values.argmax(dim=1).item()
             result = task.step(int(best_action))
             show(result)
@@ -83,7 +83,7 @@ def play_episode(
             final_score = result.info['score']
             end_reason = result.info['end_reason']
             if result.truncated or result.terminated:
-                break;
+                break
 
     return PlaybackSummary(
         decisions,
@@ -94,22 +94,22 @@ def play_episode(
 
 
 def main() -> None:
-    default_checkpoint = Path(__file__).parent / 'runs/train-06fbbc3a5a1c4ff78afc7ffabb1586c1/policy.pt'
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--check', action='store_true')
     mode.add_argument('--run', action='store_true')
-    parser.add_argument('--checkpoint', type=Path, default=default_checkpoint)
+    parser.add_argument('--checkpoint', type=Path, required=True)
     parser.add_argument('--seed', type=int, default=101)
     args = parser.parse_args()
     torch.set_num_threads(1)
     saved = torch.load(args.checkpoint, map_location='cpu', weights_only=True)
+    action_count: int = action_count_for(saved['task_version'])
     expected = dict(observation_size=observation_size_for(saved['task_version']),
-                    action_count=ACTION_COUNT, ticks=TICKS)
+                    action_count=action_count, ticks=TICKS)
     for name, value in expected.items():
         if saved.get(name) != value:
             raise ValueError(f'任务规格不兼容：{name}，保存值={saved.get(name)}，当前值={value}')
-    network = QNetwork(saved['observation_size'], ACTION_COUNT)
+    network = QNetwork(saved['observation_size'], action_count)
     network.load_state_dict(saved['online'], strict=True)
     if not all(torch.isfinite(p).all().item() for p in network.parameters()):
         raise ValueError('保存参数包含非有限值')

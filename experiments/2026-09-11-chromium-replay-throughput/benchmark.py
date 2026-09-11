@@ -29,7 +29,7 @@ def main() -> None:
             with redirect_stdout(output):
                 run_native(TrainConfig(max_updates=10000, num_envs=32, episode_limit=1000,
                                        task_version='task-v5-shield-damage', update_backend=backend,
-                                       epsilon_start=.2, epsilon_end=.2))
+                                       epsilon_start=.2, epsilon_end=.2, loss_kind="mse"))
             directory = Path(next(line.split('：', 1)[1].strip() for line in output.getvalue().splitlines()
                                   if line.startswith('输出目录：')))
             pair[backend] = directory

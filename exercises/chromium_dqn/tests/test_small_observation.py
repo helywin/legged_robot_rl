@@ -7,7 +7,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from check_task import fixture
 from runtime import RawPowerUp, RawEvents
-from task import encode_task_observation, observation_size_for, compute_reward, SMALL_TASK_VERSION, HIT_TASK_VERSION
+from task import encode_task_observation, observation_size_for, compute_reward, SMALL_TASK_VERSION, HIT_TASK_VERSION, FIVE_ACTION_TASK_VERSION
 from train import TrainConfig
 
 
@@ -27,7 +27,7 @@ class SmallObservationChecks(unittest.TestCase):
         empty = replace(state, enemies=(), enemy_bullets=(), powerups=())
         self.assertEqual(encode_task_observation(empty, SMALL_TASK_VERSION)[8:], [0.] * 28)
         self.assertEqual(observation_size_for(SMALL_TASK_VERSION), 36)
-        self.assertEqual(TrainConfig().task_version, HIT_TASK_VERSION)
+        self.assertEqual(TrainConfig().task_version, FIVE_ACTION_TASK_VERSION)
 
     def test_reward_same_as_current_v5(self) -> None:
         before = replace(fixture(), events=RawEvents())
