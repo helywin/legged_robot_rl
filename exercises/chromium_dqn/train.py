@@ -44,12 +44,30 @@
 
 成功条件：诊断检查通过；真实运行产生非零更新、至少两个回合衔接和参数变化，
 保存配置/日志/可加载权重。模型好坏稍后评测；检查点只保存推理所需信息，暂非续训状态。
+
+
+当前任务已升级为task-v2-powerups（110维），旧task-v1权重仍可独立评测回放。
+下一次道具观察对照：运行--run --max-updates 4000，与既有4000更新的62维模型比较。
+只新增道具输入及必要输入层维数，奖励、动作和其余超参数不变。
+
+以下为094第一轮预算实验的历史说明（当时为task-v1，勿当作新版基线）：
+问题：500次更新是否不足？唯一变化量max_updates：500→4000。
+保持TrainConfig其他默认值，包括5000决策上限和每局250决策上限。
+从同种子全新初始化，不加载旧policy.pt；旧权重仅供对照。
+亲手运行：
+  .venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 4000
+预期4255决策、4000次更新，耗时预计几十秒（以实际输出为准）。
+然后执行输出的评测命令，与092旧模型的20局结果比较。
+成功条件：配置只差max_updates，实际完成预算，冻结新权重完成评测，
+记录得分中位数、存活时间和死亡/截断/过关局数；不要求必然提升。
+详细记录：experiments/2026-09-11-chromium-training-budget/README.md。
 """
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
 import argparse
 import json
+import shlex
 import time
 from uuid import uuid4
 import torch
@@ -164,12 +182,13 @@ def run_native(config: TrainConfig) -> None:
     destination = Path(__file__).parent / 'runs' / ('train-' + uuid4().hex)
     destination.mkdir(parents=True)
     (destination / 'config.json').write_text(json.dumps(asdict(config), indent=2))
-    online: QNetwork = QNetwork()
-    target: QNetwork = QNetwork()
+    online: QNetwork = QNetwork(OBSERVATION_SIZE, ACTION_COUNT)
+    target: QNetwork = QNetwork(OBSERVATION_SIZE, ACTION_COUNT)
     optimizer: torch.optim.Optimizer = torch.optim.SGD(online.parameters(), lr=config.learning_rate)
     agent = Agent(online, target, optimizer, config.gamma, config.exploration_seed)
     replay = Replay(config.capacity, config.replay_seed)
     before = {name: parameter.detach().clone() for name, parameter in online.named_parameters()}
+    print('任务：', TASK_VERSION, '观察维数：', OBSERVATION_SIZE)
     print('预算：1个游戏，CPU；最多', config.max_decisions, '决策/', config.max_updates, '次更新；每动作', TICKS, 'tick')
     print('输出目录：', destination)
     start = time.monotonic()
@@ -194,6 +213,9 @@ def run_native(config: TrainConfig) -> None:
                     native_version=native_version, online=online.state_dict()), destination / 'policy.pt')
     print(json.dumps(report, indent=2))
     print('已保存推理权重policy.pt；GUI加载回放和策略效果尚待验证。')
+    print('评测本次权重：')
+    print('.venv/bin/python exercises/chromium_dqn/evaluate.py --run --checkpoint '
+          + shlex.quote(str(destination / 'policy.pt')))
 
 
 if __name__ == '__main__':
@@ -201,13 +223,17 @@ if __name__ == '__main__':
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--check', action='store_true')
     mode.add_argument('--run', action='store_true')
+    parser.add_argument('--max-updates', type=int, default=500,
+                        help='更新次数上限；094使用4000，其余训练配置保持默认')
     args = parser.parse_args()
+    if args.max_updates <= 0:
+        parser.error('--max-updates必须为正整数')
     try:
         if args.check:
             from check_train import checks
             checks()
         elif args.run:
-            run_native(TrainConfig())
+            run_native(TrainConfig(max_updates=args.max_updates))
         else:
             parser.print_help()
     except NotImplementedError as error:

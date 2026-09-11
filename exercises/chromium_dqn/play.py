@@ -13,7 +13,7 @@
 
 步骤提示：
  1. reset后取初始观察，决策数与累计奖励从0开始。
- 2. 用no_grad把一条观察编码成float32的[1,62]张量，送入network。
+ 2. 用no_grad把一条观察编码成float32的[1,观察维数]张量，送入network。
  3. 沿动作维argmax，转Python int，交给task.step。不加入随机探索。
  4. 决策数加1、累计奖励增加，调用show(result)，用新观察继续。
  5. terminated或truncated为True即停止，不再reset或step；返回统计。
@@ -38,6 +38,7 @@ import argparse
 import json
 import time
 import torch
+from task import observation_size_for
 from network import QNetwork
 from runtime import Runtime
 from task import GameTask, StepResult, TASK_VERSION, OBSERVATION_SIZE, ACTION_COUNT, TICKS
@@ -103,24 +104,25 @@ def main() -> None:
     args = parser.parse_args()
     torch.set_num_threads(1)
     saved = torch.load(args.checkpoint, map_location='cpu', weights_only=True)
-    expected = dict(task_version=TASK_VERSION, observation_size=OBSERVATION_SIZE,
+    expected = dict(observation_size=observation_size_for(saved['task_version']),
                     action_count=ACTION_COUNT, ticks=TICKS)
     for name, value in expected.items():
         if saved.get(name) != value:
             raise ValueError(f'任务规格不兼容：{name}，保存值={saved.get(name)}，当前值={value}')
-    network = QNetwork()
+    network = QNetwork(saved['observation_size'], ACTION_COUNT)
     network.load_state_dict(saved['online'], strict=True)
     if not all(torch.isfinite(p).all().item() for p in network.parameters()):
         raise ValueError('保存参数包含非有限值')
     network.eval()
     print('权重与任务规格检查通过：', args.checkpoint)
+    print('任务：', saved['task_version'], '观察维数：', saved['observation_size'])
     if args.check:
         return
     initial = {name: parameter.detach().clone() for name, parameter in network.named_parameters()}
     with Runtime() as runtime:
         if runtime.implementation != saved['native_version']:
             raise ValueError('原生行为版本不同，请先核实兼容性')
-        task = GameTask(runtime, max_decisions=saved['config']['episode_limit'])
+        task = GameTask(runtime, max_decisions=saved['config']['episode_limit'], task_version=saved['task_version'])
         def show(result: StepResult) -> None:
             runtime.render()
             time.sleep(result.info['actual_ticks'] * 0.02)

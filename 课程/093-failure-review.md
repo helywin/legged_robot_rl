@@ -1,6 +1,6 @@
 ---
 title: 从失败回放提出改进假设
-status: learning
+status: completed
 created: 2026-09-11
 related:
   - "[[092-model-versus-random]]"
@@ -47,3 +47,5 @@ related:
 下一课094只选择一个变化量。优先检验训练量是否不足：保持观察、奖励、网络和种子不变，提高训练预算后按相同规则比较；本课尚未开始该训练，也未修改奖励。
 
 详见[[experiments/2026-09-11-chromium-failure-review/README]]。
+
+学习者在失败复盘说明后要求继续，按轻量复盘进入[[094-training-budget]]；没有据此补记seed209 GUI已观看的证据。

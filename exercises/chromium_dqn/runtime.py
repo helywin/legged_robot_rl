@@ -101,6 +101,15 @@ class RawBullet:
 
 
 @dataclass(frozen=True)
+class RawPowerUp:
+    id: int
+    type: int  # 0护盾、1超级护盾、2维修、3/4/5三种弹药
+    position: tuple[float, float, float]
+    next_displacement: tuple[float, float]  # 下个tick边界限制前的位移
+    power: float  # 原生补给系数，不是得分
+
+
+@dataclass(frozen=True)
 class RawSnapshot:
     mode: str
     paused: bool
@@ -111,6 +120,7 @@ class RawSnapshot:
     player: RawPlayer
     enemies: tuple[RawEnemy, ...]
     enemy_bullets: tuple[RawBullet, ...]
+    powerups: tuple[RawPowerUp, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -147,9 +157,19 @@ def _snapshot(value):
                                  _float(b['damage'])))
     if len({b.id for b in bullets}) != len(bullets):
         raise ValueError("同一快照存在重复子弹ID")
+    powerups: list[RawPowerUp] = []
+    for raw in _array(obj['powerups']):
+        p = _object(raw)
+        kind = _int(p['type'], 0)
+        if kind > 5:
+            raise ValueError("未支持的道具类型")
+        powerups.append(RawPowerUp(_int(p['id'], 1), kind, _vector(p['position'], 3),
+                                  _vector(p['next_displacement'], 2), _float(p['power'])))
+    if len({p.id for p in powerups}) != len(powerups):
+        raise ValueError("同一快照存在重复道具ID")
     return RawSnapshot(mode, _bool(obj['paused']), _int(obj['game_frame'], 0),
                        _int(obj['level'], 1), _float(obj['speed_adjustment']),
-                       _int(obj['rng_cursor'], 0), player, tuple(enemies), tuple(bullets))
+                       _int(obj['rng_cursor'], 0), player, tuple(enemies), tuple(bullets), tuple(powerups))
 
 
 class Runtime:
@@ -193,7 +213,7 @@ class Runtime:
             self._reader = Thread(target=self._read_responses, daemon=True)
             self._reader.start()
             hello = _object(self._request('hello'))
-            for capability in ('step', 'reset', 'seed', 'render', 'render_free_steps'):
+            for capability in ('step', 'reset', 'seed', 'render', 'render_free_steps', 'powerups'):
                 if not _bool(hello[capability]):
                     raise ValueError(f"原生能力缺失：{capability}")
             if _int(hello['schema_version']) != 2:

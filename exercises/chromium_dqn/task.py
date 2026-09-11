@@ -15,13 +15,13 @@
   .venv/bin/python exercises/chromium_dqn/check_task.py --native
 未实现时会友好提示；默认不会启动游戏。--native会打开真实游戏窗口。
 
-首版任务规格 task-v1（本轮确定的基线，不是已证明足够通关的观察）：
+当前任务规格 task-v2-powerups（奖励与task-v1一致，仅新增道具观察）：
 动作索引0..17直接对应原生0..17；每次5tick。自然结束由runtime决定。
 外部每局上限max_decisions；每次成功step计数加1，与实际tick数不同。
 奖励 = (新原始分数 - 旧原始分数) / 100.0。首版不叠加其他奖励项。
 这个100只是奖励尺度；例如100→120的分数增量20，对应奖励0.2。
 
-观察：list[float]，固定62项，全部从传入的同一份RawSnapshot计算。
+观察：list[float]，新版固定110项（旧task-v1为前62项），全部从传入的同一份RawSnapshot计算。
 索引0..9依次为：
   player.position[0]/10, position[1]/7.5,
   keyboard_motion[0]/20, keyboard_motion[1]/20,
@@ -41,6 +41,14 @@ dx=对象x-玩家x，dy=对象y-玩家y；20/15是场景全宽/全高的参考�
 这里没有假造敌机稳定ID。敌机类型仅用于确定排序，不作为首版输入字段。
 真实对象mask=1.0；数量不足，整个空槽全填0.0；超出容量只取最近对象。
 mask用于区分“没有对象”与“对象相对坐标刚好为零”。原始tuple不能原地排序。
+
+索引62..109：最近4个道具，每槽12项：
+[mask, dx/20, dy/15, next_dx/1, next_dy/1, power/1, 类型0..5的六项标志]。
+类型依次为护盾、超级护盾、维修、弹药0、弹药1、弹药2。标志仅对应类型为1，
+其他为0；类型编号不表示大小。next_dx/dy是下个tick边界裁剪前预计位移，
+不是长时间速度预测；power是原生补给系数（不是道具分值），参考尺度1。
+同距离按道具id排序，id不进入网络；空槽12个零。道具可在屏幕外生成，
+本版不额外做可见区域筛选；容量4只是候选设计，并不表示已覆盖所有道具。
 
 GameTask保存：runtime、max_decisions、_previous（上一份原始快照）、
 _decisions（本局成功决策数）、_needs_reset（当前是否禁止继续step）。
@@ -66,10 +74,21 @@ step(action) -> StepResult：
 真实运行至少跨两个回合。检查通过不是已经学会游戏，课程仍需后续DQN实现。
 """
 from dataclasses import dataclass
-from runtime import Runtime, RawSnapshot
+from runtime import Runtime, RawSnapshot, RawPowerUp
 
-TASK_VERSION = 'task-v1'
-OBSERVATION_SIZE = 62
+TASK_VERSION = 'task-v2-powerups'
+OBSERVATION_SIZE = 110
+POWERUP_COUNT = 4
+POWERUP_SLOT_SIZE = 12
+
+
+def observation_size_for(task_version: str) -> int:
+    if task_version == 'task-v1':
+        return 62
+    if task_version == TASK_VERSION:
+        return OBSERVATION_SIZE
+    raise ValueError(f'不支持的任务版本：{task_version}')
+
 ACTION_COUNT = 18
 TICKS = 5
 X_SCALE = 10.0
@@ -99,8 +118,8 @@ class StepResult:
     info: dict
 
 
-def encode_observation(snapshot: RawSnapshot) -> list[float]:
-    """ 1：按文件顶部规格实现62项观察；这是策略真正能看到的数据。"""
+def encode_observation(snapshot: RawSnapshot, include_powerups: bool = True) -> list[float]:
+    """按任务规格编码；旧模型显式选择不含道具的62维输入。"""
     x = snapshot.player.position[0] / X_SCALE
     y = snapshot.player.position[1] / Y_SCALE
     motion_x = snapshot.player.keyboard_motion[0] / MOTION_SCALE
@@ -148,7 +167,29 @@ def encode_observation(snapshot: RawSnapshot) -> list[float]:
                 sorted_bullets[i].velocity_per_tick[1],
             )
 
-    return player + enemies + bullets
+    base: list[float] = player + enemies + bullets
+    return base + encode_powerups(snapshot) if include_powerups else base
+
+
+def encode_powerups(snapshot: RawSnapshot) -> list[float]:
+    """4个最近道具槽位；类型使用六项独热编码，ID仅参与稳定排序。"""
+    result: list[float] = []
+    player_x, player_y = snapshot.player.position[:2]
+    nearest: list[RawPowerUp] = sorted(snapshot.powerups, key=lambda item: (
+        (item.position[0] - player_x) ** 2 + (item.position[1] - player_y) ** 2,
+        item.id,
+    ))[:POWERUP_COUNT]
+    for item in nearest:
+        kind: list[float] = [0.0] * 6
+        kind[item.type] = 1.0
+        result.extend([
+            1.0, (item.position[0] - player_x) / DX_SCALE,
+            (item.position[1] - player_y) / DY_SCALE,
+            item.next_displacement[0], item.next_displacement[1], item.power,
+            *kind,
+        ])
+    result.extend([0.0] * ((POWERUP_COUNT - len(nearest)) * POWERUP_SLOT_SIZE))
+    return result
 
 
 
@@ -158,7 +199,10 @@ def compute_reward(before: RawSnapshot, after: RawSnapshot) -> float:
 
 
 class GameTask:
-    def __init__(self, runtime: Runtime, max_decisions=1000):
+    def __init__(self, runtime: Runtime, max_decisions: int = 1000,
+                 task_version: str = TASK_VERSION) -> None:
+        self.observation_size: int = observation_size_for(task_version)
+        self.task_version: str = task_version
         if type(max_decisions) is not int or max_decisions <= 0:
             raise ValueError('max_decisions必须是正整数')
         self.runtime = runtime
@@ -171,7 +215,7 @@ class GameTask:
         """开始新局；全部准备成功后，才允许下一次step。"""
         self._needs_reset = True
         snapshot = self.runtime.reset(seed)
-        observation = encode_observation(snapshot)
+        observation = encode_observation(snapshot, self.task_version != 'task-v1')
         result = ResetResult(
             observation=observation,
             info=dict(score=snapshot.player.score, lives_counter=snapshot.player.lives_counter, decisions=0,
@@ -191,7 +235,7 @@ class GameTask:
 
         try:
             rawstep = self.runtime.step(action, TICKS)
-            observation = encode_observation(rawstep.snapshot)
+            observation = encode_observation(rawstep.snapshot, self.task_version != 'task-v1')
             reward = compute_reward(self._previous, rawstep.snapshot)
             decisions = self._decisions + 1
             terminated = rawstep.terminated

@@ -51,6 +51,7 @@ import statistics
 import time
 from uuid import uuid4
 import torch
+from task import observation_size_for
 from network import QNetwork
 from runtime import Runtime
 from task import GameTask, TASK_VERSION, OBSERVATION_SIZE, ACTION_COUNT, TICKS
@@ -142,11 +143,11 @@ def summarize(rows: list[EpisodeResult]) -> Aggregate:
 
 def run_comparison(checkpoint: Path) -> None:
     saved = torch.load(checkpoint, map_location='cpu', weights_only=True)
-    for key, expected in dict(task_version=TASK_VERSION, observation_size=OBSERVATION_SIZE,
+    for key, expected in dict(observation_size=observation_size_for(saved['task_version']),
                               action_count=ACTION_COUNT, ticks=TICKS).items():
         if saved.get(key) != expected:
             raise ValueError(f'检查点任务规格不匹配：{key}')
-    network = QNetwork()
+    network = QNetwork(saved['observation_size'], ACTION_COUNT)
     network.load_state_dict(saved['online'], strict=True)
     network.eval()
     if not all(torch.isfinite(p).all().item() for p in network.parameters()):
@@ -159,7 +160,7 @@ def run_comparison(checkpoint: Path) -> None:
         checkpoint_sha256=hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
         source_sha256={name: hashlib.sha256((Path(__file__).parent/name).read_bytes()).hexdigest()
                        for name in ("task.py", "network.py", "runtime.py", "evaluate.py")},
-        game_seeds=seeds, random_action_seed_offset=100000, task_version=TASK_VERSION,
+        game_seeds=seeds, random_action_seed_offset=100000, task_version=saved['task_version'],
         episode_limit=saved['config']['episode_limit'], ticks=TICKS, actions=ACTION_COUNT,
         native_version=saved['native_version']), indent=2))
     print('评测预算：模型/随机各20局，共40局；每局上限', saved['config']['episode_limit'], '决策；不更新参数。')
@@ -176,7 +177,7 @@ def run_comparison(checkpoint: Path) -> None:
             with Runtime() as runtime:
                 if runtime.implementation != saved['native_version']:
                     raise ValueError('原生行为版本不匹配')
-                task = GameTask(runtime, saved['config']['episode_limit'])
+                task = GameTask(runtime, saved['config']['episode_limit'], task_version=saved['task_version'])
                 for seed in seeds:
                     rng = random.Random(100000+seed)
                     def random_action(observation: list[float]) -> int:

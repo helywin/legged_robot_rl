@@ -45,7 +45,7 @@ class ScriptedRuntime:
 def checks():
     base = fixture()
     check_vector(encode_observation(base), [0.0, -0.4, 0.0, 0.0, 1.0, -1.0, 1.0,
-                                            0.0, 0.0, 0.0] + [0.0] * 52)
+                                            0.0, 0.0, 0.0] + [0.0] * (OBSERVATION_SIZE - 10))
     # 非对称尺度：纵向距离7比横向距离8近，缩放后排序会反转。
     enemy_x = RawEnemy(0, (8.0, -3.0, 25.0), (0.0, 0.0, 0.0), (1.0, 1.0), -1.0)
     enemy_y = replace(enemy_x, position=(0.0, 4.0, 25.0))
