@@ -47,7 +47,7 @@ _decisions（本局成功决策数）、_needs_reset（当前是否禁止继续s
 
 reset(seed) -> ResetResult：
   调runtime.reset(seed)，编码初始观察；成功后保存快照、计数0、允许step。
-  info字典必须包含score、decisions、actual_ticks、end_reason：
+  info字典必须包含score、decisions、actual_ticks、end_reason，另含原始lives_counter供评测：
   分别为初始分数、0、0、None。没有动作，所以不返回奖励、不生成经验。
 
 step(action) -> StepResult：
@@ -174,7 +174,7 @@ class GameTask:
         observation = encode_observation(snapshot)
         result = ResetResult(
             observation=observation,
-            info=dict(score=snapshot.player.score, decisions=0,
+            info=dict(score=snapshot.player.score, lives_counter=snapshot.player.lives_counter, decisions=0,
                       actual_ticks=0, end_reason=None),
         )
         self._previous = snapshot
@@ -208,7 +208,7 @@ class GameTask:
                 reward=reward,
                 terminated=terminated,
                 truncated=truncated,
-                info=dict(score=rawstep.snapshot.player.score, decisions=decisions,
+                info=dict(score=rawstep.snapshot.player.score, lives_counter=rawstep.snapshot.player.lives_counter, decisions=decisions,
                           actual_ticks=rawstep.actual_ticks, end_reason=end_reason),
             )
         except Exception:

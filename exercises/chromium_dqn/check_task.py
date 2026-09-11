@@ -84,7 +84,7 @@ def checks():
         except RuntimeError:
             pass
         start = task.reset(7)
-        assert start.info == dict(score=100.0, decisions=0, actual_ticks=0, end_reason=None)
+        assert start.info == dict(score=100.0, lives_counter=4, decisions=0, actual_ticks=0, end_reason=None)
         for invalid in (True, -1, 18, 1.5):
             try:
                 task.step(invalid)
