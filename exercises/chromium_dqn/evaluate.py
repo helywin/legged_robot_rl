@@ -7,9 +7,9 @@
 问题：冻结的训练模型，在同样任务规则下能否比随机动作获得更好成绩？
 固定比较：同一个policy.pt、task-v1、18动作、每动作5tick、每局250决策上限。
 模型关闭探索，随机策略均匀选择0..17（也允许移动开火组合），都不更新参数。
-双方各20局，游戏seed均为201..220；随机动作每局用独立seed=100000+游戏seed。
+双方各20局，当前默认游戏seed为30001..30020（早期实验为201..220）；随机动作每局用独立seed=100000+游戏seed。
 相同种子便于配对，但不同动作会使游戏轨迹和后续随机消耗分叉，不承诺同一弹幕。
-本轮不开逐步绘图，仍依赖X11/GL。40局最多10000决策（约50000原生tick），
+本轮使用headless，不依赖显示服务。40局最多10000决策（约50000原生tick），
 预计秒级至几十秒，具体以elapsed_seconds为准。这是短回合对照，不是完整游戏验收。
 
 教师提供：权重加载、策略选择回调、运行调度、输出路径与JSON保存。
@@ -66,6 +66,7 @@ class EpisodeResult:
     total_reward: float
     observed_life_decreases: int
     end_reason: str
+    events: dict[str, int | float] | None = None
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,7 @@ class Aggregate:
     completion_rate: float
     death_rate: float
     truncation_rate: float
+    mean_events: dict[str, float] | None = None
 
 
 def evaluate_episode(
@@ -94,6 +96,7 @@ def evaluate_episode(
     total_reward: float = 0.0
     lives: int = reset_result.info['lives_counter']
     observed_life_decreases: int = 0
+    events: dict[str, int | float] | None = None
 
     while 1:
         action = choose_action(observation)
@@ -102,6 +105,11 @@ def evaluate_episode(
         # 游戏时间按实际推进量统计，最后一步可能不足约定的5tick。
         total_ticks += step_result.info['actual_ticks']
         total_reward += step_result.reward
+        if 'events' in step_result.info:
+            if events is None:
+                events = {key: 0 for key in step_result.info['events']}
+            for key, value in step_result.info['events'].items():
+                events[key] += value
         current_lives: int = step_result.info['lives_counter']
         observed_life_decreases += max(0, lives - current_lives)
         # 增加生命时也更新基准，以免漏算随后发生的下降。
@@ -116,7 +124,8 @@ def evaluate_episode(
                 step_result.info['score'],
                 total_reward,
                 observed_life_decreases,
-                step_result.info['end_reason']
+                step_result.info['end_reason'],
+                events,
             )
 
 
@@ -128,7 +137,13 @@ def summarize(rows: list[EpisodeResult]) -> Aggregate:
 
     count: int = len(rows)
     scores: list[float] = [row.score for row in rows]
+    mean_events: dict[str, float] | None = None
+    available = [row.events for row in rows if row.events is not None]
+    if len(available) == len(rows):
+        mean_events = {key: float(statistics.mean(event[key] for event in available))
+                       for key in available[0]}
     return Aggregate(
+        mean_events=mean_events,
         episodes=count,
         mean_score=float(statistics.mean(scores)),
         median_score=float(statistics.median(scores)),
@@ -141,7 +156,9 @@ def summarize(rows: list[EpisodeResult]) -> Aggregate:
     )
 
 
-def run_comparison(checkpoint: Path) -> None:
+def run_comparison(checkpoint: Path, seed_start: int = 30001) -> None:
+    if not 0 <= seed_start <= 4294967295 - 19:
+        raise ValueError("评测起始种子须允许连续20个uint32种子")
     saved = torch.load(checkpoint, map_location='cpu', weights_only=True)
     for key, expected in dict(observation_size=observation_size_for(saved['task_version']),
                               action_count=ACTION_COUNT, ticks=TICKS).items():
@@ -153,7 +170,7 @@ def run_comparison(checkpoint: Path) -> None:
     if not all(torch.isfinite(p).all().item() for p in network.parameters()):
         raise ValueError('非有限网络参数')
     before = {name: p.detach().clone() for name, p in network.named_parameters()}
-    seeds: list[int] = list(range(201, 221))
+    seeds: list[int] = list(range(seed_start, seed_start + 20))
     destination = Path(__file__).parent / 'runs' / ('eval-' + uuid4().hex)
     destination.mkdir(parents=True)
     (destination/'config.json').write_text(json.dumps(dict(checkpoint=str(checkpoint.resolve()),
@@ -204,6 +221,7 @@ if __name__ == '__main__':
     mode.add_argument('--check', action='store_true')
     mode.add_argument('--run', action='store_true')
     parser.add_argument('--checkpoint', type=Path, default=Path(__file__).parent/'runs/train-06fbbc3a5a1c4ff78afc7ffabb1586c1/policy.pt')
+    parser.add_argument('--seed-start', type=int, default=30001, help='连续20局起始种子，默认30001；须避开训练开局')
     args = parser.parse_args()
     torch.set_num_threads(1)
     try:
@@ -211,6 +229,6 @@ if __name__ == '__main__':
             from check_evaluate import checks
             checks()
         else:
-            run_comparison(args.checkpoint)
+            run_comparison(args.checkpoint, args.seed_start)
     except NotImplementedError as error:
         print('评测实作尚未完成：', error)

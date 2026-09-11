@@ -7,7 +7,10 @@ from dataclasses import replace
 import math
 from unittest.mock import patch
 from runtime import Runtime, RawSnapshot, RawPlayer, RawEnemy, RawBullet, RawStep
-from task import GameTask, encode_observation, compute_reward, OBSERVATION_SIZE
+from task import GameTask as Task, encode_observation, compute_reward as reward_for_version, OBSERVATION_SIZE
+from functools import partial
+GameTask = partial(Task, task_version='task-v2-powerups')
+compute_reward = partial(reward_for_version, task_version='task-v2-powerups')
 
 
 def fixture(x=0.0, score=0.0):

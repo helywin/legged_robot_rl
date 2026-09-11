@@ -16,7 +16,7 @@ def main():
     model=QNetwork();model.load_state_dict(saved['online']);model.eval()
     rows=[]
     with Runtime() as runtime:
-        task=GameTask(runtime,saved['config']['episode_limit'])
+        task=GameTask(runtime,saved['config']['episode_limit'],task_version=saved['task_version'])
         state=task.reset(209)
         obs=state.observation
         previous_lives=state.info['lives_counter']

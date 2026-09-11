@@ -112,6 +112,17 @@ class RawPowerUp:
 
 
 @dataclass(frozen=True)
+class RawEvents:
+    enemies_destroyed: int = 0
+    enemies_escaped: int = 0
+    lives_lost: int = 0
+    pickups: int = 0
+    missed_powerups: int = 0
+    pickup_score: float = 0.0
+    missed_powerup_score: float = 0.0
+
+
+@dataclass(frozen=True)
 class RawSnapshot:
     mode: str
     paused: bool
@@ -123,6 +134,7 @@ class RawSnapshot:
     enemies: tuple[RawEnemy, ...]
     enemy_bullets: tuple[RawBullet, ...]
     powerups: tuple[RawPowerUp, ...] = ()
+    events: RawEvents | None = None
 
 
 @dataclass(frozen=True)
@@ -169,9 +181,15 @@ def _snapshot(value):
                                   _vector(p['next_displacement'], 2), _float(p['power'])))
     if len({p.id for p in powerups}) != len(powerups):
         raise ValueError("同一快照存在重复道具ID")
+    event = _object(obj['episode_events'])
+    events = RawEvents(*(_int(event[key], 0) for key in (
+        'enemies_destroyed', 'enemies_escaped', 'lives_lost', 'pickups', 'missed_powerups')),
+        _float(event['pickup_score']), _float(event['missed_powerup_score']))
+    if events.pickup_score < 0 or events.missed_powerup_score < 0:
+        raise ValueError('道具累计得分不能为负')
     return RawSnapshot(mode, _bool(obj['paused']), _int(obj['game_frame'], 0),
                        _int(obj['level'], 1), _float(obj['speed_adjustment']),
-                       _int(obj['rng_cursor'], 0), player, tuple(enemies), tuple(bullets), tuple(powerups))
+                       _int(obj['rng_cursor'], 0), player, tuple(enemies), tuple(bullets), tuple(powerups), events)
 
 
 class Runtime:
@@ -223,7 +241,7 @@ class Runtime:
             self._reader = Thread(target=self._read_responses, daemon=True)
             self._reader.start()
             hello = _object(self._request('hello'))
-            for capability in ('step', 'reset', 'seed', 'render_free_steps', 'powerups',
+            for capability in ('step', 'reset', 'seed', 'render_free_steps', 'powerups', 'episode_events',
                                'headless' if headless else 'render'):
                 if not _bool(hello[capability]):
                     raise ValueError(f"原生能力缺失：{capability}")

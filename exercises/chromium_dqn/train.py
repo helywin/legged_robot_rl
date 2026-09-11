@@ -57,8 +57,8 @@
 保存配置/日志/可加载权重。模型好坏稍后评测；检查点只保存推理所需信息，暂非续训状态。
 
 
-当前任务已升级为task-v2-powerups（110维），旧task-v1权重仍可独立评测回放。
-下一次道具观察对照：运行--run --max-updates 4000，与既有4000更新的62维模型比较。
+当前默认任务为task-v3-events（110维，事件奖励），旧task-v1权重仍可独立评测回放。
+当前奖励对照：--task-version task-v3-events与task-v2-powerups均为110维，只改变奖励。
 只新增道具输入及必要输入层维数，奖励、动作和其余超参数不变。
 
 以下为094第一轮预算实验的历史说明（当时为task-v1，勿当作新版基线）：
@@ -96,6 +96,7 @@ from task import GameTask, ResetResult, StepResult, TASK_VERSION, OBSERVATION_SI
 class TrainConfig:
     max_updates: int = 500
     num_envs: int = 1
+    task_version: str = TASK_VERSION
     episode_limit: int = 250
     capacity: int = 10000
     batch_size: int = 32
@@ -179,7 +180,8 @@ def train_loop(
             terminated = step_result.terminated,
             truncated = step_result.truncated,
             epsilon = epsilon,
-            loss = step_loss
+            loss = step_loss,
+            events = step_result.info.get('events'),
         ))
 
     return TrainingSummary(
@@ -235,7 +237,7 @@ def vector_train_loop(
                 record(dict(decision=decisions, updates=updates, env_id=i,
                             episode=local_episodes[i]+1, reward=result.reward,
                             terminated=result.terminated, truncated=result.truncated,
-                            epsilon=epsilons[i], loss=step_loss))
+                            epsilon=epsilons[i], loss=step_loss, events=result.info.get('events')))
                 if result.terminated or result.truncated:
                     needs_reset[i] = True
                     local_episodes[i] += 1
@@ -244,6 +246,8 @@ def vector_train_loop(
 
 
 def run_native(config: TrainConfig) -> None:
+    if config.task_version not in ('task-v2-powerups', TASK_VERSION):
+        raise ValueError('训练入口只支持110维v2/v3任务')
     if config.num_envs <= 0 or config.max_updates <= 0:
         raise ValueError('环境数与更新预算必须为正')
     if not 0 < config.batch_size <= config.learning_starts <= config.capacity:
@@ -259,14 +263,14 @@ def run_native(config: TrainConfig) -> None:
     agent = Agent(online, target, optimizer, config.gamma, config.exploration_seed)
     replay = TensorReplay(config.capacity, OBSERVATION_SIZE, config.replay_seed)
     before = {name: parameter.detach().clone() for name, parameter in online.named_parameters()}
-    print('任务：', TASK_VERSION, '观察维数：', OBSERVATION_SIZE)
+    print('任务：', config.task_version, '观察维数：', OBSERVATION_SIZE)
     print('预算：', config.num_envs, '个无窗口游戏，CPU；', config.max_updates, '次更新；每动作', TICKS, 'tick；每局最多', config.episode_limit, '次决策')
     print('输出目录：', destination)
     start = time.monotonic()
     with ExitStack() as stack:
         log = stack.enter_context((destination / 'steps.jsonl').open('w', buffering=1024*1024))
         runtimes: list[Runtime] = [stack.enter_context(Runtime(headless=True)) for _ in range(config.num_envs)]
-        tasks: list[GameTask] = [GameTask(runtime, max_decisions=config.episode_limit) for runtime in runtimes]
+        tasks: list[GameTask] = [GameTask(runtime, max_decisions=config.episode_limit, task_version=config.task_version) for runtime in runtimes]
         def record(row: dict[str, object]) -> None:
             log.write(json.dumps(row, allow_nan=False) + '\n')
             # 保留逐步日志，但不为每条经验强制刷新文件。
@@ -285,7 +289,7 @@ def run_native(config: TrainConfig) -> None:
     (destination / 'summary.json').write_text(json.dumps(report, indent=2, allow_nan=False))
     if summary.updates <= 0 or not changed:
         raise RuntimeError('没有实际更新或参数变化，不能将本次运行记为训练通过')
-    torch.save(dict(task_version=TASK_VERSION, observation_size=OBSERVATION_SIZE,
+    torch.save(dict(task_version=config.task_version, observation_size=OBSERVATION_SIZE,
                     action_count=ACTION_COUNT, ticks=TICKS, config=asdict(config),
                     native_version=native_version, online=online.state_dict()), destination / 'policy.pt')
     print(json.dumps(report, indent=2))
@@ -306,6 +310,8 @@ if __name__ == '__main__':
     parser.add_argument('--max-updates', type=int, default=500,
                         help='更新次数上限；094使用4000，其余训练配置保持默认')
     parser.add_argument('--num-envs', type=int, default=1, help='并行游戏进程数；共享一个模型和经验池，默认1')
+    parser.add_argument('--task-version', choices=('task-v2-powerups', TASK_VERSION), default=TASK_VERSION,
+                        help='新版事件奖励或旧分差奖励，观察均110维；用于冻结对照')
     args = parser.parse_args()
     if args.num_envs <= 0:
         parser.error('--num-envs必须为正整数')
@@ -316,7 +322,7 @@ if __name__ == '__main__':
             from check_train import checks
             checks()
         elif args.run:
-            run_native(TrainConfig(max_updates=args.max_updates, num_envs=args.num_envs))
+            run_native(TrainConfig(max_updates=args.max_updates, num_envs=args.num_envs, task_version=args.task_version))
         else:
             parser.print_help()
     except NotImplementedError as error:

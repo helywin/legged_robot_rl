@@ -15,7 +15,8 @@
   .venv/bin/python exercises/chromium_dqn/check_task.py --native
 未实现时会友好提示；默认不会启动游戏。--native会打开真实游戏窗口。
 
-当前任务规格 task-v2-powerups（奖励与task-v1一致，仅新增道具观察）：
+当前任务规格task-v3-events：110维观察与v2完全一致，新版奖励见下文。
+历史task-v1/v2仍支持原分差奖励，下面的分差说明仅适用于旧版。：
 动作索引0..17直接对应原生0..17；每次5tick。自然结束由runtime决定。
 外部每局上限max_decisions；每次成功step计数加1，与实际tick数不同。
 奖励 = (新原始分数 - 旧原始分数) / 100.0。首版不叠加其他奖励项。
@@ -50,6 +51,12 @@ mask用于区分“没有对象”与“对象相对坐标刚好为零”。原�
 同距离按道具id排序，id不进入网络；空槽12个零。道具可在屏幕外生成，
 本版不额外做可见区域筛选；容量4只是候选设计，并不表示已覆盖所有道具。
 
+task-v3-events奖励规则：击毁敌机+1、拾取道具+0.2、每实际损命-5、进入level_over+20。
+不使用原始游戏得分，不对漏机再次扣分（漏机已造成损命），不奖励存活时间或惩罚位置。
+事件累计值来自原生episode_events，每步取差；计数缺失或倒退报错。击毁包含碰撞、
+子弹、爆炸等引起的正常敌机销毁，不包含漏出屏幕和reset清理，不是精确子弹击杀归因。
+例如同一步漏接得2500分并损命1，新版奖励-5；单独拾取一次奖励0.2。
+
 GameTask保存：runtime、max_decisions、_previous（上一份原始快照）、
 _decisions（本局成功决策数）、_needs_reset（当前是否禁止继续step）。
 
@@ -73,10 +80,10 @@ step(action) -> StepResult：
 当前步产生；终止/截断分别正确；结束后拒绝step；重开清零自己的状态；
 真实运行至少跨两个回合。检查通过不是已经学会游戏，课程仍需后续DQN实现。
 """
-from dataclasses import dataclass
-from runtime import Runtime, RawSnapshot, RawPowerUp
+from dataclasses import dataclass, asdict
+from runtime import Runtime, RawSnapshot, RawPowerUp, RawEvents
 
-TASK_VERSION = 'task-v2-powerups'
+TASK_VERSION = 'task-v3-events'
 OBSERVATION_SIZE = 110
 POWERUP_COUNT = 4
 POWERUP_SLOT_SIZE = 12
@@ -85,7 +92,7 @@ POWERUP_SLOT_SIZE = 12
 def observation_size_for(task_version: str) -> int:
     if task_version == 'task-v1':
         return 62
-    if task_version == TASK_VERSION:
+    if task_version in ('task-v2-powerups', TASK_VERSION):
         return OBSERVATION_SIZE
     raise ValueError(f'不支持的任务版本：{task_version}')
 
@@ -193,9 +200,27 @@ def encode_powerups(snapshot: RawSnapshot) -> list[float]:
 
 
 
-def compute_reward(before: RawSnapshot, after: RawSnapshot) -> float:
-    """ 2：按task-v1计算本步奖励，返回float。"""
-    return (after.player.score - before.player.score) / 100.0
+def event_delta(before: RawSnapshot, after: RawSnapshot) -> RawEvents:
+    """累计事件取差分；实际损命不会被同一步加命抵消。"""
+    if before.events is None or after.events is None:
+        raise ValueError('task-v3-events需要原生episode_events，不能把缺失事件当成零')
+    changes = {name: getattr(after.events, name) - getattr(before.events, name)
+               for name in RawEvents.__dataclass_fields__}
+    if any(value < 0 for value in changes.values()):
+        raise ValueError('事件计数倒退，不能跨reset计算奖励')
+    return RawEvents(**changes)
+
+
+def compute_reward(before: RawSnapshot, after: RawSnapshot,
+                   task_version: str = TASK_VERSION) -> float:
+    """v3奖励=击毁+0.2拾取-5损命+20过关；v1/v2保留原分差奖励。"""
+    observation_size_for(task_version)
+    if task_version != TASK_VERSION:
+        return (after.player.score - before.player.score) / 100.0
+    events: RawEvents = event_delta(before, after)
+    completed: bool = before.mode != 'level_over' and after.mode == 'level_over'
+    return float(events.enemies_destroyed + 0.2 * events.pickups - 5.0 * events.lives_lost
+                 + 20.0 * completed)
 
 
 class GameTask:
@@ -215,6 +240,8 @@ class GameTask:
         """开始新局；全部准备成功后，才允许下一次step。"""
         self._needs_reset = True
         snapshot = self.runtime.reset(seed)
+        if self.task_version == TASK_VERSION and snapshot.events is None:
+            raise ValueError('新版任务需要原生事件接口')
         observation = encode_observation(snapshot, self.task_version != 'task-v1')
         result = ResetResult(
             observation=observation,
@@ -236,7 +263,7 @@ class GameTask:
         try:
             rawstep = self.runtime.step(action, TICKS)
             observation = encode_observation(rawstep.snapshot, self.task_version != 'task-v1')
-            reward = compute_reward(self._previous, rawstep.snapshot)
+            reward = compute_reward(self._previous, rawstep.snapshot, self.task_version)
             decisions = self._decisions + 1
             terminated = rawstep.terminated
             # 本版任务规定：自然结束优先，不再同时标记外部截断。
@@ -255,6 +282,8 @@ class GameTask:
                 info=dict(score=rawstep.snapshot.player.score, lives_counter=rawstep.snapshot.player.lives_counter, decisions=decisions,
                           actual_ticks=rawstep.actual_ticks, end_reason=end_reason),
             )
+            if self._previous.events is not None and rawstep.snapshot.events is not None:
+                result.info['events'] = asdict(event_delta(self._previous, rawstep.snapshot))
         except Exception:
             # 游戏可能已经执行动作；不能假装这一步没有发生并继续采样。
             self._needs_reset = True
