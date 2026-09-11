@@ -62,6 +62,9 @@ class Replay:
             self._items.remove(self._items[0])
         self._items.append(row)
 
+    def sample_batch(self, batch_size: int) -> Batch:
+        return make_batch(self.sample(batch_size))
+
     def sample(self, batch_size: int) -> list[Transition]:
         if type(batch_size) is not int or batch_size <=0:
             raise ValueError("batch_size数值错误")

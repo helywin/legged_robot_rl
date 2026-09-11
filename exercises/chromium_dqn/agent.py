@@ -153,5 +153,16 @@ class Agent:
         else:
             return int(q_values.argmax(dim=1).item())
 
+    def act_batch(self, observations: list[list[float]], epsilons: list[float]) -> list[int]:
+        """一次前向为N个环境选动作；float32输入[N,观察维数]，输出N个动作。"""
+        if not observations or len(observations) != len(epsilons) or any(not 0 <= e <= 1 for e in epsilons):
+            raise ValueError('观察与探索概率须一一对应且非空')
+        with torch.no_grad():
+            q_values: torch.Tensor = self.online(torch.tensor(observations, dtype=torch.float32))
+        greedy: list[int] = q_values.argmax(dim=1).tolist()
+        return [self._exploration_rng.randrange(q_values.shape[1])
+                if self._exploration_rng.random() < epsilon else action
+                for action, epsilon in zip(greedy, epsilons)]
+
     def sync_target(self) -> None:
         self.target.load_state_dict(self.online.state_dict())

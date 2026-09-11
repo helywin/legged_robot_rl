@@ -174,7 +174,7 @@ def run_comparison(checkpoint: Path) -> None:
     with (destination/'episodes.jsonl').open('w') as log:
         for name in ('model', 'random'):
             groups[name] = []
-            with Runtime() as runtime:
+            with Runtime(headless=True) as runtime:
                 if runtime.implementation != saved['native_version']:
                     raise ValueError('原生行为版本不匹配')
                 task = GameTask(runtime, saved['config']['episode_limit'], task_version=saved['task_version'])

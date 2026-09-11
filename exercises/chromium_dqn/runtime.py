@@ -3,7 +3,9 @@
 从仓库根目录执行：.venv/bin/python exercises/chromium_dqn/runtime.py
 该命令只做 reset → 右移 → render → close，不训练、不创建经验。
 
-调用约定：Runtime是单线程所有者；with负责关闭。reset(seed)返回RawSnapshot，
+调用约定：每个Runtime最多一个未完成调用（可由线程池串行调用）；with负责关闭。
+Runtime(headless=True)不创建窗口/GL，训练默认使用；GUI回放使用默认False。
+reset(seed)返回RawSnapshot，
 step(action_id, ticks)返回RawStep。所有快照不可变。位置为世界坐标，
 keyboard_motion不是世界速度，velocity_per_tick不是每秒速度，damage不是剩余血量。
 通信失败后实例关闭，不能重发同一步；游戏可能已经执行了丢失响应的动作。
@@ -175,8 +177,12 @@ def _snapshot(value):
 class Runtime:
     """保持一个原生进程；必须先reset，再step。仅支持同步第一关。"""
 
-    def __init__(self, render_each_step=False, timeout=10.0, binary=None, data_directory=None):
+    def __init__(self, render_each_step=False, timeout=10.0, binary=None, data_directory=None, headless: bool = False):
         _bool(render_each_step)
+        _bool(headless)
+        if headless and render_each_step:
+            raise ValueError("无窗口模式不能逐步绘图")
+        self.headless: bool = headless
         self.timeout = _float(timeout)
         if self.timeout <= 0:
             raise ValueError("timeout必须大于0")
@@ -204,7 +210,11 @@ class Runtime:
                    CHROMIUM_BSU_RL_RENDER='1' if render_each_step else '0',
                    CHROMIUM_BSU_RL_STATE_DIR=self._state.name,
                    CHROMIUM_BSU_SCORE=self._state.name + '/scores', CHROMIUM_BSU_DATA=str(data),
-                   SDL_VIDEODRIVER='x11')
+                   SDL_VIDEODRIVER='x11', CHROMIUM_BSU_RL_HEADLESS='1' if headless else '0')
+        if headless:
+            env.pop('DISPLAY', None)
+            env.pop('WAYLAND_DISPLAY', None)
+            env['SDL_VIDEODRIVER'] = 'dummy'
         try:
             with self.log_path.open('wb') as log:
                 self._process = subprocess.Popen([str(binary), '--window', '--vidmode', '1', '--noaudio'],
@@ -213,7 +223,8 @@ class Runtime:
             self._reader = Thread(target=self._read_responses, daemon=True)
             self._reader.start()
             hello = _object(self._request('hello'))
-            for capability in ('step', 'reset', 'seed', 'render', 'render_free_steps', 'powerups'):
+            for capability in ('step', 'reset', 'seed', 'render_free_steps', 'powerups',
+                               'headless' if headless else 'render'):
                 if not _bool(hello[capability]):
                     raise ValueError(f"原生能力缺失：{capability}")
             if _int(hello['schema_version']) != 2:
@@ -223,7 +234,7 @@ class Runtime:
                 raise ValueError("原生版本字段错误")
             (self.run_directory / 'runtime.json').write_text(json.dumps({
                 'binary': str(binary), 'data': str(data), 'implementation': self.implementation,
-                'render_each_step': render_each_step, 'timeout': self.timeout,
+                'render_each_step': render_each_step, 'headless': headless, 'timeout': self.timeout,
             }, indent=2))
         except Exception:
             self.close()
@@ -314,6 +325,8 @@ class Runtime:
             self._fail(error)
 
     def render(self) -> None:
+        if self.headless:
+            raise GameRejected("无窗口模式不支持绘图；回放请创建GUI运行时")
         if self._last is None:
             raise GameRejected('请先reset，再render')
         response = self._request('render')

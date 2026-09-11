@@ -1,5 +1,10 @@
 """090第三段：亲手实现真实DQN训练循环。
 
+无窗口训练（默认1个环境；--num-envs 8开启8个独立游戏进程并发采样）：
+  .venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 40000 --num-envs 8
+只有一个总训练预算max_updates；N个环境共享模型/经验池，不是每个各训练40000次。
+每新增一条达到预填门槛的经验仍更新一次；并行不是通过少更新获得虚假的加速。
+
 增加整体训练预算：
   .venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 40000
 训练只限制更新次数。预填256条后每决策更新一次，40000更新需要40255决策。
@@ -69,6 +74,8 @@
 详细记录：experiments/2026-09-11-chromium-training-budget/README.md。
 """
 from dataclasses import asdict, dataclass
+from contextlib import ExitStack
+from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path
 from typing import Callable
 import argparse
@@ -79,14 +86,16 @@ from uuid import uuid4
 import torch
 from agent import Agent
 from network import QNetwork
-from replay import Replay, Transition, make_batch
+from replay import Replay, Transition
+from tensor_replay import TensorReplay
 from runtime import Runtime
-from task import GameTask, TASK_VERSION, OBSERVATION_SIZE, ACTION_COUNT, TICKS
+from task import GameTask, ResetResult, StepResult, TASK_VERSION, OBSERVATION_SIZE, ACTION_COUNT, TICKS
 
 
 @dataclass(frozen=True)
 class TrainConfig:
     max_updates: int = 500
+    num_envs: int = 1
     episode_limit: int = 250
     capacity: int = 10000
     batch_size: int = 32
@@ -113,7 +122,7 @@ class TrainingSummary:
 def train_loop(
     task: GameTask,
     agent: Agent,
-    replay: Replay,
+    replay: Replay | TensorReplay,
     config: TrainConfig,
     record: Callable[[dict[str, object]], None],
 ) -> TrainingSummary:
@@ -153,7 +162,7 @@ def train_loop(
 
         step_loss = None
         if len(replay) >= config.learning_starts:
-            status = agent.update(make_batch(replay.sample(config.batch_size)))
+            status = agent.update(replay.sample_batch(config.batch_size))
             updates += 1
             last_loss = status.loss
             step_loss = status.loss
@@ -181,7 +190,64 @@ def train_loop(
         last_loss
     )
 
+def vector_train_loop(
+    tasks: list[GameTask], agent: Agent, replay: TensorReplay, config: TrainConfig,
+    record: Callable[[dict[str, object]], None],
+) -> TrainingSummary:
+    """N个原生进程并发step，共享策略与经验池；每条可学习经验仍更新一次。"""
+    agent.sync_target()
+    count: int = len(tasks)
+    local_episodes: list[int] = [0] * count
+    observations: list[list[float]] = [[] for _ in tasks]
+    needs_reset: list[bool] = [True] * count
+    decisions: int = 0
+    updates: int = 0
+    finished: int = 0
+    total_reward: float = 0.0
+    last_loss: float | None = None
+    # 每个Runtime只允许一个未完成请求；按env顺序收集结果以免线程完成顺序影响训练。
+    with ThreadPoolExecutor(max_workers=count) as workers:
+        while updates < config.max_updates:
+            remaining: int = max(0, config.learning_starts - 1 - len(replay)) + config.max_updates - updates
+            active: int = min(count, remaining)
+            resets: dict[int, Future[ResetResult]] = {i: workers.submit(tasks[i].reset, config.game_seed + i + local_episodes[i] * count)
+                      for i in range(active) if needs_reset[i]}
+            for i, future in resets.items():
+                observations[i] = future.result().observation
+                needs_reset[i] = False
+            epsilons: list[float] = [1.0 if len(replay) + i < config.learning_starts else config.epsilon
+                                     for i in range(active)]
+            actions: list[int] = agent.act_batch(observations[:active], epsilons)
+            pending: list[Future[StepResult]] = [workers.submit(tasks[i].step, actions[i]) for i in range(active)]
+            for i, future in enumerate(pending):
+                result = future.result()
+                replay.add(Transition(tuple(observations[i]), actions[i], result.reward,
+                                      tuple(result.observation), result.terminated, result.truncated))
+                observations[i] = result.observation
+                decisions += 1
+                total_reward += result.reward
+                step_loss: float | None = None
+                if len(replay) >= config.learning_starts:
+                    last_loss = step_loss = agent.update(replay.sample_batch(config.batch_size)).loss
+                    updates += 1
+                    if updates % config.target_sync_every == 0:
+                        agent.sync_target()
+                record(dict(decision=decisions, updates=updates, env_id=i,
+                            episode=local_episodes[i]+1, reward=result.reward,
+                            terminated=result.terminated, truncated=result.truncated,
+                            epsilon=epsilons[i], loss=step_loss))
+                if result.terminated or result.truncated:
+                    needs_reset[i] = True
+                    local_episodes[i] += 1
+                    finished += 1
+    return TrainingSummary(decisions, finished, updates, total_reward, last_loss)
+
+
 def run_native(config: TrainConfig) -> None:
+    if config.num_envs <= 0 or config.max_updates <= 0:
+        raise ValueError('环境数与更新预算必须为正')
+    if not 0 < config.batch_size <= config.learning_starts <= config.capacity:
+        raise ValueError('要求批量大小 <= 预填量 <= 经验容量，且均为正')
     torch.set_num_threads(1)
     torch.manual_seed(config.network_seed)
     destination = Path(__file__).parent / 'runs' / ('train-' + uuid4().hex)
@@ -191,25 +257,31 @@ def run_native(config: TrainConfig) -> None:
     target: QNetwork = QNetwork(OBSERVATION_SIZE, ACTION_COUNT)
     optimizer: torch.optim.Optimizer = torch.optim.SGD(online.parameters(), lr=config.learning_rate)
     agent = Agent(online, target, optimizer, config.gamma, config.exploration_seed)
-    replay = Replay(config.capacity, config.replay_seed)
+    replay = TensorReplay(config.capacity, OBSERVATION_SIZE, config.replay_seed)
     before = {name: parameter.detach().clone() for name, parameter in online.named_parameters()}
     print('任务：', TASK_VERSION, '观察维数：', OBSERVATION_SIZE)
-    print('预算：1个游戏，CPU；', config.max_updates, '次更新；每动作', TICKS, 'tick；每局最多', config.episode_limit, '次决策')
+    print('预算：', config.num_envs, '个无窗口游戏，CPU；', config.max_updates, '次更新；每动作', TICKS, 'tick；每局最多', config.episode_limit, '次决策')
     print('输出目录：', destination)
     start = time.monotonic()
-    with (destination / 'steps.jsonl').open('w') as log, Runtime() as runtime:
+    with ExitStack() as stack:
+        log = stack.enter_context((destination / 'steps.jsonl').open('w', buffering=1024*1024))
+        runtimes: list[Runtime] = [stack.enter_context(Runtime(headless=True)) for _ in range(config.num_envs)]
+        tasks: list[GameTask] = [GameTask(runtime, max_decisions=config.episode_limit) for runtime in runtimes]
         def record(row: dict[str, object]) -> None:
             log.write(json.dumps(row, allow_nan=False) + '\n')
-            log.flush()
-        task = GameTask(runtime, max_decisions=config.episode_limit)
-        # 首次GUI显示开局；循环会显式reset同一种子，避免依赖这个演示状态。
-        runtime.reset(config.game_seed)
-        runtime.render()
-        summary = train_loop(task, agent, replay, config, record)
-        native_version = runtime.implementation
+            # 保留逐步日志，但不为每条经验强制刷新文件。
+            if int(row['decision']) % 1000 == 0:
+                log.flush()
+        if config.num_envs == 1:
+            summary = train_loop(tasks[0], agent, replay, config, record)
+        else:
+            summary = vector_train_loop(tasks, agent, replay, config, record)
+        native_version = runtimes[0].implementation
     changed = any(not torch.equal(before[name], value) for name, value in online.named_parameters())
     report = dict(asdict(summary), parameter_changed=changed, elapsed_seconds=time.monotonic()-start,
-                  native_version=native_version)
+                  native_version=native_version, num_envs=config.num_envs, headless=True)
+    report['updates_per_second'] = summary.updates / report['elapsed_seconds']
+    report['decisions_per_second'] = summary.decisions / report['elapsed_seconds']
     (destination / 'summary.json').write_text(json.dumps(report, indent=2, allow_nan=False))
     if summary.updates <= 0 or not changed:
         raise RuntimeError('没有实际更新或参数变化，不能将本次运行记为训练通过')
@@ -233,7 +305,10 @@ if __name__ == '__main__':
     mode.add_argument('--run', action='store_true')
     parser.add_argument('--max-updates', type=int, default=500,
                         help='更新次数上限；094使用4000，其余训练配置保持默认')
+    parser.add_argument('--num-envs', type=int, default=1, help='并行游戏进程数；共享一个模型和经验池，默认1')
     args = parser.parse_args()
+    if args.num_envs <= 0:
+        parser.error('--num-envs必须为正整数')
     if args.max_updates <= 0:
         parser.error('--max-updates必须为正整数')
     try:
@@ -241,7 +316,7 @@ if __name__ == '__main__':
             from check_train import checks
             checks()
         elif args.run:
-            run_native(TrainConfig(max_updates=args.max_updates))
+            run_native(TrainConfig(max_updates=args.max_updates, num_envs=args.num_envs))
         else:
             parser.print_help()
     except NotImplementedError as error:
