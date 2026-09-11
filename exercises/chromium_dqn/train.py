@@ -1,5 +1,11 @@
 """090第三段：亲手实现真实DQN训练循环。
 
+增加整体训练预算：
+  .venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 40000
+训练只限制更新次数。预填256条后每决策更新一次，40000更新需要40255决策。
+每局250决策后重开，不中断累计更新。上述命令会从头训练，不是续训。
+
+
 你已完成Task、Replay、网络和Agent。本次只实现train_loop的TODO，把它们连接。
 教师提供配置、启动/关闭、日志和检查点文件样板；不替你写循环。
 从仓库根目录运行：
@@ -7,9 +13,9 @@
   .venv/bin/python exercises/chromium_dqn/train.py --run
 --check执行独立的循环诊断；--run才启动真实游戏与训练。无参数显示说明。
 
-目标：一段完整训练，直到max_decisions或max_updates任一上限达到。
+目标：一段完整训练，直到max_updates次更新完成。
 一个游戏进程、CPU、每动作5tick；首版SGD学习率0.001，不引入新的优化算法。
-预填充256条，批量32，之后每决策更新一次；最多500次更新、5000次决策。
+预填充256条，批量32，之后每决策更新一次；默认500次更新，总决策数只统计、不限制。
 每局250次决策上限，通常第755次决策达到500次更新（256那步开始更新）。
 预填充阶段epsilon=1.0，之后0.2；预填充结束以本步选动作前库存量判断。
 这些是流程验收预算，短回合会限制策略学习范围，不作为游戏能力评测规则。
@@ -26,7 +32,7 @@
 
 循环顺序提示（保留整个循环由你实现）：
  1. 首次agent.sync_target()；task.reset(config.game_seed)取得当前观察。
- 2. 判断两个训练预算是否用尽；若没有，依据当前库存决定epsilon，agent.act选动作。
+ 2. 判断更新预算是否用尽；若没有，依据当前库存决定epsilon，agent.act选动作。
  3. task.step执行一次。用旧观察、动作、本步奖励、新观察及两个结束标志创建Transition。
     观察列表转换tuple；先把本步经验存入Replay，不能先reset覆盖下一观察。
  4. 本次决策数和累计奖励增加；如果库存达到learning_starts，则sample→make_batch→update。
@@ -80,7 +86,6 @@ from task import GameTask, TASK_VERSION, OBSERVATION_SIZE, ACTION_COUNT, TICKS
 
 @dataclass(frozen=True)
 class TrainConfig:
-    max_decisions: int = 5000
     max_updates: int = 500
     episode_limit: int = 250
     capacity: int = 10000
@@ -124,7 +129,7 @@ def train_loop(
     step_loss: float | None = None
     need_reset = False
     while 1:
-        if decisions >= config.max_decisions or updates >= config.max_updates:
+        if updates >= config.max_updates:
             break
         if need_reset:
             observation = task.reset(
@@ -189,7 +194,7 @@ def run_native(config: TrainConfig) -> None:
     replay = Replay(config.capacity, config.replay_seed)
     before = {name: parameter.detach().clone() for name, parameter in online.named_parameters()}
     print('任务：', TASK_VERSION, '观察维数：', OBSERVATION_SIZE)
-    print('预算：1个游戏，CPU；最多', config.max_decisions, '决策/', config.max_updates, '次更新；每动作', TICKS, 'tick')
+    print('预算：1个游戏，CPU；', config.max_updates, '次更新；每动作', TICKS, 'tick；每局最多', config.episode_limit, '次决策')
     print('输出目录：', destination)
     start = time.monotonic()
     with (destination / 'steps.jsonl').open('w') as log, Runtime() as runtime:
@@ -215,6 +220,9 @@ def run_native(config: TrainConfig) -> None:
     print('已保存推理权重policy.pt；GUI加载回放和策略效果尚待验证。')
     print('评测本次权重：')
     print('.venv/bin/python exercises/chromium_dqn/evaluate.py --run --checkpoint '
+          + shlex.quote(str(destination / 'policy.pt')))
+    print('GUI回放本次权重：')
+    print('.venv/bin/python exercises/chromium_dqn/play.py --run --checkpoint '
           + shlex.quote(str(destination / 'policy.pt')))
 
 

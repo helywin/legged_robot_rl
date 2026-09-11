@@ -66,14 +66,16 @@ class InspectedAgent(Agent):
 
 
 def main():
-    config = replace(TrainConfig(**json.loads((SOURCE/'config.json').read_text())), max_updates=1)
+    original_config = json.loads((SOURCE/'config.json').read_text())
+    original_config.pop('max_decisions', None)  # 历史总决策上限；本诊断仅复现第一次更新。
+    config = replace(TrainConfig(**original_config), max_updates=1)
     torch.set_num_threads(1)
     torch.manual_seed(config.network_seed)
     online, target = QNetwork(), QNetwork()
     agent = InspectedAgent(online,target,torch.optim.SGD(online.parameters(),lr=config.learning_rate),
                            config.gamma,config.exploration_seed)
     with Runtime() as runtime:
-        summary = train_loop(GameTask(runtime,config.episode_limit),agent,
+        summary = train_loop(GameTask(runtime,config.episode_limit,task_version='task-v1'),agent,
                              Replay(config.capacity,config.replay_seed),config,lambda row: None)
     original = next(json.loads(line)['loss'] for line in (SOURCE/'steps.jsonl').read_text().splitlines()
                     if json.loads(line)['updates'] == 1)
