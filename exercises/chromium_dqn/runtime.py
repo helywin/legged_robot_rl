@@ -120,6 +120,7 @@ class RawEvents:
     missed_powerups: int = 0
     pickup_score: float = 0.0
     missed_powerup_score: float = 0.0
+    shield_damage: float = 0.0  # 累计实际受伤吸收量，不含自然衰减或重置
 
 
 @dataclass(frozen=True)
@@ -184,9 +185,10 @@ def _snapshot(value):
     event = _object(obj['episode_events'])
     events = RawEvents(*(_int(event[key], 0) for key in (
         'enemies_destroyed', 'enemies_escaped', 'lives_lost', 'pickups', 'missed_powerups')),
-        _float(event['pickup_score']), _float(event['missed_powerup_score']))
-    if events.pickup_score < 0 or events.missed_powerup_score < 0:
-        raise ValueError('道具累计得分不能为负')
+        _float(event['pickup_score']), _float(event['missed_powerup_score']),
+        _float(event['shield_damage']))
+    if min(events.pickup_score, events.missed_powerup_score, events.shield_damage) < 0:
+        raise ValueError('道具累计得分与护盾受损量不能为负')
     return RawSnapshot(mode, _bool(obj['paused']), _int(obj['game_frame'], 0),
                        _int(obj['level'], 1), _float(obj['speed_adjustment']),
                        _int(obj['rng_cursor'], 0), player, tuple(enemies), tuple(bullets), tuple(powerups), events)
@@ -241,7 +243,7 @@ class Runtime:
             self._reader = Thread(target=self._read_responses, daemon=True)
             self._reader.start()
             hello = _object(self._request('hello'))
-            for capability in ('step', 'reset', 'seed', 'render_free_steps', 'powerups', 'episode_events',
+            for capability in ('step', 'reset', 'seed', 'render_free_steps', 'powerups', 'episode_events', 'shield_damage',
                                'headless' if headless else 'render'):
                 if not _bool(hello[capability]):
                     raise ValueError(f"原生能力缺失：{capability}")

@@ -59,6 +59,7 @@
 
 当前默认任务为task-v3-events（110维，事件奖励），旧task-v1权重仍可独立评测回放。
 当前奖励对照：--task-version task-v3-events与task-v2-powerups均为110维，只改变奖励。
+观察压缩对照：--task-version task-v4-no-motion为84维，奖励与v3相同。
 只新增道具输入及必要输入层维数，奖励、动作和其余超参数不变。
 
 以下为094第一轮预算实验的历史说明（当时为task-v1，勿当作新版基线）：
@@ -82,6 +83,7 @@ import argparse
 import json
 import shlex
 import time
+import sys
 from uuid import uuid4
 import torch
 from agent import Agent
@@ -89,14 +91,14 @@ from network import QNetwork
 from replay import Replay, Transition
 from tensor_replay import TensorReplay
 from runtime import Runtime
-from task import GameTask, ResetResult, StepResult, TASK_VERSION, OBSERVATION_SIZE, ACTION_COUNT, TICKS
+from task import GameTask, ResetResult, StepResult, TASK_VERSION, SHIELD_TASK_VERSION, TRAIN_TASK_VERSIONS, observation_size_for, ACTION_COUNT, TICKS
 
 
 @dataclass(frozen=True)
 class TrainConfig:
     max_updates: int = 500
     num_envs: int = 1
-    task_version: str = TASK_VERSION
+    task_version: str = SHIELD_TASK_VERSION
     episode_limit: int = 250
     capacity: int = 10000
     batch_size: int = 32
@@ -245,37 +247,80 @@ def vector_train_loop(
     return TrainingSummary(decisions, finished, updates, total_reward, last_loss)
 
 
+class TrainingProgress:
+    """标准库进度条：终端原行刷新，重定向时低频输出完整行。"""
+
+    def __init__(self, total: int, learning_starts: int) -> None:
+        self.total: int = total
+        self.learning_starts: int = learning_starts
+        self.started: float = time.monotonic()
+        self.last_render: float = self.started
+        self.interactive: bool = sys.stderr.isatty()
+        self.width: int = 0
+        self.update(0, 0, force=True)
+
+    def update(self, updates: int, decisions: int, force: bool = False) -> None:
+        now: float = time.monotonic()
+        if not force and now - self.last_render < (0.5 if self.interactive else 5.0):
+            return
+        self.last_render = now
+        elapsed: float = now - self.started
+        rate: float = updates / elapsed if elapsed > 0 else 0.0
+        fraction: float = updates / self.total
+        filled: int = int(20 * fraction)
+        bar: str = '=' * filled + '-' * (20 - filled)
+        eta: str = f'{(self.total - updates) / rate:.0f}s' if rate > 0 else '--'
+        phase: str = (f'预填经验 {min(decisions, self.learning_starts)}/{self.learning_starts}'
+                      if updates == 0 else '训练')
+        line: str = (f'{phase} [{bar}] {fraction:6.1%} 更新 {updates}/{self.total}'
+                     f' | 决策 {decisions} | {rate:.0f} 更新/s | 已用 {elapsed:.0f}s | 剩余 {eta}')
+        if self.interactive:
+            self.width = max(self.width, len(line))
+            print('\r' + line.ljust(self.width), end='', file=sys.stderr, flush=True)
+        else:
+            print(line, file=sys.stderr, flush=True)
+
+    def close(self) -> None:
+        if self.interactive:
+            print(file=sys.stderr, flush=True)
+
+
 def run_native(config: TrainConfig) -> None:
-    if config.task_version not in ('task-v2-powerups', TASK_VERSION):
-        raise ValueError('训练入口只支持110维v2/v3任务')
+    if config.task_version not in TRAIN_TASK_VERSIONS:
+        raise ValueError('训练入口只支持v2/v3/v4/v5任务')
     if config.num_envs <= 0 or config.max_updates <= 0:
         raise ValueError('环境数与更新预算必须为正')
     if not 0 < config.batch_size <= config.learning_starts <= config.capacity:
         raise ValueError('要求批量大小 <= 预填量 <= 经验容量，且均为正')
+    observation_size: int = observation_size_for(config.task_version)
     torch.set_num_threads(1)
     torch.manual_seed(config.network_seed)
     destination = Path(__file__).parent / 'runs' / ('train-' + uuid4().hex)
     destination.mkdir(parents=True)
     (destination / 'config.json').write_text(json.dumps(asdict(config), indent=2))
-    online: QNetwork = QNetwork(OBSERVATION_SIZE, ACTION_COUNT)
-    target: QNetwork = QNetwork(OBSERVATION_SIZE, ACTION_COUNT)
+    online: QNetwork = QNetwork(observation_size, ACTION_COUNT)
+    target: QNetwork = QNetwork(observation_size, ACTION_COUNT)
     optimizer: torch.optim.Optimizer = torch.optim.SGD(online.parameters(), lr=config.learning_rate)
     agent = Agent(online, target, optimizer, config.gamma, config.exploration_seed)
-    replay = TensorReplay(config.capacity, OBSERVATION_SIZE, config.replay_seed)
+    replay = TensorReplay(config.capacity, observation_size, config.replay_seed)
     before = {name: parameter.detach().clone() for name, parameter in online.named_parameters()}
-    print('任务：', config.task_version, '观察维数：', OBSERVATION_SIZE)
+    print('任务：', config.task_version, '观察维数：', observation_size)
     print('预算：', config.num_envs, '个无窗口游戏，CPU；', config.max_updates, '次更新；每动作', TICKS, 'tick；每局最多', config.episode_limit, '次决策')
-    print('输出目录：', destination)
+    print('输出目录：', destination, flush=True)
     start = time.monotonic()
     with ExitStack() as stack:
         log = stack.enter_context((destination / 'steps.jsonl').open('w', buffering=1024*1024))
         runtimes: list[Runtime] = [stack.enter_context(Runtime(headless=True)) for _ in range(config.num_envs)]
         tasks: list[GameTask] = [GameTask(runtime, max_decisions=config.episode_limit, task_version=config.task_version) for runtime in runtimes]
+        progress = TrainingProgress(config.max_updates, config.learning_starts)
+        stack.callback(progress.close)
         def record(row: dict[str, object]) -> None:
             log.write(json.dumps(row, allow_nan=False) + '\n')
             # 保留逐步日志，但不为每条经验强制刷新文件。
             if int(row['decision']) % 1000 == 0:
                 log.flush()
+            progress.update(int(row['updates']), int(row['decision']),
+                            force=int(row['updates']) == config.max_updates)
         if config.num_envs == 1:
             summary = train_loop(tasks[0], agent, replay, config, record)
         else:
@@ -289,7 +334,7 @@ def run_native(config: TrainConfig) -> None:
     (destination / 'summary.json').write_text(json.dumps(report, indent=2, allow_nan=False))
     if summary.updates <= 0 or not changed:
         raise RuntimeError('没有实际更新或参数变化，不能将本次运行记为训练通过')
-    torch.save(dict(task_version=config.task_version, observation_size=OBSERVATION_SIZE,
+    torch.save(dict(task_version=config.task_version, observation_size=observation_size,
                     action_count=ACTION_COUNT, ticks=TICKS, config=asdict(config),
                     native_version=native_version, online=online.state_dict()), destination / 'policy.pt')
     print(json.dumps(report, indent=2))
@@ -310,8 +355,8 @@ if __name__ == '__main__':
     parser.add_argument('--max-updates', type=int, default=500,
                         help='更新次数上限；094使用4000，其余训练配置保持默认')
     parser.add_argument('--num-envs', type=int, default=1, help='并行游戏进程数；共享一个模型和经验池，默认1')
-    parser.add_argument('--task-version', choices=('task-v2-powerups', TASK_VERSION), default=TASK_VERSION,
-                        help='新版事件奖励或旧分差奖励，观察均110维；用于冻结对照')
+    parser.add_argument('--task-version', choices=TRAIN_TASK_VERSIONS, default=SHIELD_TASK_VERSION,
+                        help='v2分差奖励110维；v3事件奖励110维；v4事件奖励84维；v5另加受伤掉盾惩罚（默认）')
     args = parser.parse_args()
     if args.num_envs <= 0:
         parser.error('--num-envs必须为正整数')
@@ -322,7 +367,7 @@ if __name__ == '__main__':
             from check_train import checks
             checks()
         elif args.run:
-            run_native(TrainConfig(max_updates=args.max_updates, num_envs=args.num_envs, task_version=args.task_version))
+            run_native(TrainConfig(max_updates=args.max_updates, num_envs=args.num_envs, task_version=args.task_version, episode_limit=1000))
         else:
             parser.print_help()
     except NotImplementedError as error:

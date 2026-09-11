@@ -15,7 +15,10 @@
   .venv/bin/python exercises/chromium_dqn/check_task.py --native
 未实现时会友好提示；默认不会启动游戏。--native会打开真实游戏窗口。
 
-当前任务规格task-v3-events：110维观察与v2完全一致，新版奖励见下文。
+默认任务task-v3-events：110维观察与v2完全一致，新版奖励见下文。
+候选task-v4-no-motion：同一事件奖励，删除26项运动字段，观察84维。
+训练默认task-v5-shield-damage：同样84维，再减去本步受伤掉盾量/100。
+注意GameTask默认仍v3兼容教学检查，训练入口显式传入保存的任务版本。
 历史task-v1/v2仍支持原分差奖励，下面的分差说明仅适用于旧版。：
 动作索引0..17直接对应原生0..17；每次5tick。自然结束由runtime决定。
 外部每局上限max_decisions；每次成功step计数加1，与实际tick数不同。
@@ -84,6 +87,10 @@ from dataclasses import dataclass, asdict
 from runtime import Runtime, RawSnapshot, RawPowerUp, RawEvents
 
 TASK_VERSION = 'task-v3-events'
+COMPACT_TASK_VERSION = 'task-v4-no-motion'
+SHIELD_TASK_VERSION = 'task-v5-shield-damage'
+TRAIN_TASK_VERSIONS = ('task-v2-powerups', TASK_VERSION, COMPACT_TASK_VERSION, SHIELD_TASK_VERSION)
+SHIELD_DAMAGE_SCALE = 100.0
 OBSERVATION_SIZE = 110
 POWERUP_COUNT = 4
 POWERUP_SLOT_SIZE = 12
@@ -94,6 +101,8 @@ def observation_size_for(task_version: str) -> int:
         return 62
     if task_version in ('task-v2-powerups', TASK_VERSION):
         return OBSERVATION_SIZE
+    if task_version in (COMPACT_TASK_VERSION, SHIELD_TASK_VERSION):
+        return 84
     raise ValueError(f'不支持的任务版本：{task_version}')
 
 ACTION_COUNT = 18
@@ -199,6 +208,23 @@ def encode_powerups(snapshot: RawSnapshot) -> list[float]:
     return result
 
 
+def encode_task_observation(snapshot: RawSnapshot, task_version: str) -> list[float]:
+    """v4只删除运动字段：自身8、敌机4×3、敌弹8×3、道具4×10，共84项。
+
+    从同一编码投影，保证排序、缩放、填充和其余信息与v3完全相同。
+    v4没有历史帧或隐含速度输入；普通前馈网络不能从单帧确定运动方向。
+    """
+    observation_size_for(task_version)
+    full: list[float] = encode_observation(snapshot, task_version != 'task-v1')
+    if task_version not in (COMPACT_TASK_VERSION, SHIELD_TASK_VERSION):
+        return full
+    compact: list[float] = full[:2] + full[4:22]
+    for offset in range(22, 62, 5):
+        compact.extend(full[offset:offset + 3])
+    for offset in range(62, 110, 12):
+        compact.extend(full[offset:offset + 3] + full[offset + 5:offset + 12])
+    return compact
+
 
 def event_delta(before: RawSnapshot, after: RawSnapshot) -> RawEvents:
     """累计事件取差分；实际损命不会被同一步加命抵消。"""
@@ -213,14 +239,16 @@ def event_delta(before: RawSnapshot, after: RawSnapshot) -> RawEvents:
 
 def compute_reward(before: RawSnapshot, after: RawSnapshot,
                    task_version: str = TASK_VERSION) -> float:
-    """v3奖励=击毁+0.2拾取-5损命+20过关；v1/v2保留原分差奖励。"""
+    """v3/v4奖励=击毁+0.2拾取-5损命+20过关；v1/v2保留原分差奖励。"""
     observation_size_for(task_version)
-    if task_version != TASK_VERSION:
+    if task_version in ('task-v1', 'task-v2-powerups'):
         return (after.player.score - before.player.score) / 100.0
     events: RawEvents = event_delta(before, after)
     completed: bool = before.mode != 'level_over' and after.mode == 'level_over'
+    shield_penalty: float = (events.shield_damage / SHIELD_DAMAGE_SCALE
+                             if task_version == SHIELD_TASK_VERSION else 0.0)
     return float(events.enemies_destroyed + 0.2 * events.pickups - 5.0 * events.lives_lost
-                 + 20.0 * completed)
+                 + 20.0 * completed - shield_penalty)
 
 
 class GameTask:
@@ -240,9 +268,9 @@ class GameTask:
         """开始新局；全部准备成功后，才允许下一次step。"""
         self._needs_reset = True
         snapshot = self.runtime.reset(seed)
-        if self.task_version == TASK_VERSION and snapshot.events is None:
+        if self.task_version in (TASK_VERSION, COMPACT_TASK_VERSION, SHIELD_TASK_VERSION) and snapshot.events is None:
             raise ValueError('新版任务需要原生事件接口')
-        observation = encode_observation(snapshot, self.task_version != 'task-v1')
+        observation = encode_task_observation(snapshot, self.task_version)
         result = ResetResult(
             observation=observation,
             info=dict(score=snapshot.player.score, lives_counter=snapshot.player.lives_counter, decisions=0,
@@ -262,7 +290,7 @@ class GameTask:
 
         try:
             rawstep = self.runtime.step(action, TICKS)
-            observation = encode_observation(rawstep.snapshot, self.task_version != 'task-v1')
+            observation = encode_task_observation(rawstep.snapshot, self.task_version)
             reward = compute_reward(self._previous, rawstep.snapshot, self.task_version)
             decisions = self._decisions + 1
             terminated = rawstep.terminated

@@ -176,3 +176,40 @@ Task完成后，当前动手入口为`network.py`和`agent.py`；核心TODO由�
 默认训练使用110维观察与事件奖励：击毁+1、拾取+0.2、实际损命-5、过关+20。漏机已经扣命，不重复罚；漏接原游戏分数不作为训练奖励。`--task-version task-v2-powerups`可重建旧奖励基线，旧v1/v2权重仍按自身版本回放。Runtime要求episode_events能力，缺失会报错。
 
 训练steps日志新增本步events，评测新增每局events与mean_events（击毁、漏机、损命、拾取、漏接及两类得分）。40k新旧对照已跑完，均20局死亡，不能宣称已解决问题；详见experiments/2026-09-11-chromium-event-reward。无需立即再跑40万更新。
+
+
+## 可选84维观察实验
+
+默认仍是110维task-v3-events。加上明确版本参数试用压缩版：
+
+```bash
+.venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 40000 --num-envs 8 --task-version task-v4-no-motion
+```
+
+v4删除玩家keyboard_motion两项、8颗敌弹的16项速度、4个道具的8项预计位移。
+保留位置、资源、对象标志、道具补给系数和类型，奖励与v3完全一致。
+敌机原本没有速度输入。网络、经验池和权重元数据按版本选维数；
+旧模型仍能回放，但110维权重不能直接作为84维网络的初始权重。
+运行终端打印的评测/回放命令选择本次权重；默认回放路径不会自动跟随最新训练。
+
+单次40k试验击毁改善、拾取下降，耗时基本相同，尚不能证明稳定收敛。
+记录：[[experiments/2026-09-11-chromium-compact-observation/README]]。
+
+
+## 当前训练默认：task-v5-shield-damage
+
+本节覆盖上文历史默认：训练现默认v5，84维；奖励在v4基础上减去
+本步实际受伤掉盾量/100。例：受损40扣0.4，受损40并损命1共扣5.4。
+自然衰减、补给、重生和结束时清零不计作受伤；事件包含碰撞等受伤，非仅子弹。
+需新版原生shield_damage能力，不能用缺失字段伪造零值。
+
+```bash
+.venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 400000 --num-envs 32
+```
+
+原命令若带`--task-version task-v4-no-motion`，会继续使用旧奖励；要用新奖励，
+删除该参数或改为`--task-version task-v5-shield-damage`。
+旧权重回放仍使用权重内保存的版本，不会自动获得新版训练效果。
+
+进度条按总更新数显示，终端每0.5秒刷新，重定向每5秒输出，结束强制显示100%。
+记录：[[experiments/2026-09-11-chromium-shield-reward/README]]。

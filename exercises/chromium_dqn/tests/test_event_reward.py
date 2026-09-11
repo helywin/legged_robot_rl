@@ -6,7 +6,7 @@ import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from check_task import fixture
 from runtime import RawEvents
-from task import compute_reward, encode_observation
+from task import compute_reward, encode_observation, SHIELD_TASK_VERSION
 
 
 class RewardChecks(unittest.TestCase):
@@ -18,6 +18,20 @@ class RewardChecks(unittest.TestCase):
         self.assertEqual(compute_reward(before,after),-5.0)
         self.assertEqual(compute_reward(before,after,'task-v2-powerups'),25.0)
         self.assertEqual(encode_observation(before),encode_observation(after))
+
+    def test_shield_damage_is_event_based_and_versioned(self) -> None:
+        before = replace(fixture(), events=RawEvents(shield_damage=20))
+        # 同一步受损40又补盾：快照护盾反而增加，仍应扣0.4。
+        after = replace(before, player=replace(before.player, shields=900),
+                        events=RawEvents(shield_damage=60))
+        self.assertAlmostEqual(compute_reward(before, after, SHIELD_TASK_VERSION), -0.4)
+        self.assertEqual(compute_reward(before, after, 'task-v4-no-motion'), 0.0)
+        # 自然衰减没有受伤事件；死亡清零只保留原损命惩罚。
+        decay = replace(before, player=replace(before.player, shields=499.25))
+        self.assertEqual(compute_reward(before, decay, SHIELD_TASK_VERSION), 0.0)
+        dead = replace(before, player=replace(before.player, shields=0),
+                       events=RawEvents(shield_damage=60, lives_lost=1))
+        self.assertAlmostEqual(compute_reward(before, dead, SHIELD_TASK_VERSION), -5.4)
 
     def test_components_differences_terminal_and_no_position_reward(self) -> None:
         before=replace(fixture(),events=RawEvents(enemies_destroyed=5,pickups=2))
