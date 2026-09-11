@@ -96,10 +96,67 @@ def train_loop(
 ) -> TrainingSummary:
     """ 按顶部的完整流程连接各模块，返回本次训练统计。"""
     agent.sync_target()
-    task.reset(config.game_seed)
-    update_count = 0
-    
+    observation = task.reset(config.game_seed).observation
+    decisions = 0
+    episodes_finished = 0
+    episode: int = episodes_finished + 1
+    updates = 0
+    total_reward = 0.0
+    last_loss: float | None = None
+    step_loss: float | None = None
+    need_reset = False
+    while 1:
+        if decisions >= config.max_decisions or updates >= config.max_updates:
+            break
+        if need_reset:
+            observation = task.reset(
+                            config.game_seed + episodes_finished
+                        ).observation
+            need_reset = False
+        epsilon = 1.0 if len(replay) < config.learning_starts else config.epsilon
+        action = agent.act(observation, epsilon)
+        step_result = task.step(action)
+        decisions += 1
+        total_reward += step_result.reward
+        episode = episodes_finished + 1
+        
+        transition = Transition(tuple(observation), action, step_result.reward, tuple(step_result.observation), step_result.terminated, step_result.truncated)
+        replay.add(transition)
+        if step_result.truncated or step_result.terminated:
+            episodes_finished += 1
+            need_reset = True
+        else:
+            observation = step_result.observation
 
+        step_loss = None
+        if len(replay) >= config.learning_starts:
+            status = agent.update(make_batch(replay.sample(config.batch_size)))
+            updates += 1
+            last_loss = status.loss
+            step_loss = status.loss
+
+            
+            if updates % config.target_sync_every == 0:
+                agent.sync_target()
+
+        record(dict(
+            decision = decisions,
+            updates = updates,
+            episode = episode,
+            reward = step_result.reward,
+            terminated = step_result.terminated,
+            truncated = step_result.truncated,
+            epsilon = epsilon,
+            loss = step_loss
+        ))
+
+    return TrainingSummary(
+        decisions,
+        episodes_finished,
+        updates,
+        total_reward,
+        last_loss
+    )
 
 def run_native(config: TrainConfig) -> None:
     torch.set_num_threads(1)

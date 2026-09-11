@@ -126,3 +126,7 @@ Task完成后，当前动手入口为`network.py`和`agent.py`；核心TODO由�
 ## 当前入口：真实训练循环
 
 回放、动作选择和批量更新连接已通过学习者实现检查。继续实现`train.py`中的`train_loop`，其余启动/日志/保存样板已提供。先运行`train.py --check`，通过后再运行`train.py --run`。当前循环未实现，无真实训练结果；保存的policy.pt设计为推理权重，尚不是续训快照。
+
+## 当前进度：真实训练已完成，准备GUI回放
+
+学习者首轮755次决策、500次更新，已保存policy.pt并核对；详情见仓库experiments/2026-09-11-chromium-first-dqn。当前实现play.py中的play_episode；先用`play.py --check`验证加载，再用`play.py --run`观看策略。核心回放尚未实现，尚无策略有效性评测。
