@@ -23,7 +23,7 @@ from pathlib import Path
 Path({str(pidfile)!r}).write_text(str(os.getpid()))
 for line in sys.stdin:
     req = json.loads(line)
-    result = dict(step=True, reset=True, seed=True, render=True, render_free_steps=True, powerups=True, episode_events=True, shield_damage=True,
+    result = dict(step=True, reset=True, seed=True, render=True, render_free_steps=True, powerups=True, episode_events=True, shield_damage=True, projectile_damage=True,
                   schema_version=2, implementation='test-peer')
     if {fault!r} == 'capability': result['seed'] = False
     if req['command'] == 'reset':

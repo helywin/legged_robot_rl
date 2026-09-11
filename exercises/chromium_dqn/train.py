@@ -60,6 +60,7 @@
 当前默认任务为task-v3-events（110维，事件奖励），旧task-v1权重仍可独立评测回放。
 当前奖励对照：--task-version task-v3-events与task-v2-powerups均为110维，只改变奖励。
 观察压缩对照：--task-version task-v4-no-motion为84维，奖励与v3相同。
+当前默认v7为36维、逐次命中奖励；探索率在预填后剩余决策预算的前80%从1.0降至0.05。
 只新增道具输入及必要输入层维数，奖励、动作和其余超参数不变。
 
 以下为094第一轮预算实验的历史说明（当时为task-v1，勿当作新版基线）：
@@ -75,6 +76,7 @@
 详细记录：experiments/2026-09-11-chromium-training-budget/README.md。
 """
 from dataclasses import asdict, dataclass
+from collections import deque
 from contextlib import ExitStack
 from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path
@@ -83,6 +85,7 @@ import argparse
 import json
 import shlex
 import time
+import math
 import sys
 from uuid import uuid4
 import torch
@@ -91,26 +94,63 @@ from network import QNetwork
 from replay import Replay, Transition
 from tensor_replay import TensorReplay
 from runtime import Runtime
-from task import GameTask, ResetResult, StepResult, TASK_VERSION, SHIELD_TASK_VERSION, TRAIN_TASK_VERSIONS, observation_size_for, ACTION_COUNT, TICKS
+from task import GameTask, ResetResult, StepResult, TASK_VERSION, HIT_TASK_VERSION, TRAIN_TASK_VERSIONS, observation_size_for, ACTION_COUNT, TICKS
 
 
 @dataclass(frozen=True)
 class TrainConfig:
     max_updates: int = 500
+    update_backend: str = 'eager'
     num_envs: int = 1
-    task_version: str = SHIELD_TASK_VERSION
+    task_version: str = HIT_TASK_VERSION
     episode_limit: int = 250
     capacity: int = 10000
     batch_size: int = 32
     learning_starts: int = 256
     target_sync_every: int = 100
-    epsilon: float = 0.2
+    epsilon_start: float = 1.0
+    epsilon_end: float = 0.05  # 全局决策衰减终点，不因开新局重置
+    epsilon_decay_fraction: float = 0.8  # 剩余采样预算前80%衰减，最后20%保持终值
     gamma: float = 0.99
     learning_rate: float = 0.001
     game_seed: int = 31
     network_seed: int = 7
     replay_seed: int = 7
     exploration_seed: int = 11
+
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.epsilon_end <= self.epsilon_start <= 1:
+            raise ValueError('要求0 <= epsilon_end <= epsilon_start <= 1')
+        if not 0 < self.epsilon_decay_fraction <= 1:
+            raise ValueError('epsilon_decay_fraction必须在(0, 1]内')
+
+    @property
+    def total_decisions(self) -> int:
+        # 第learning_starts条经验即可完成第一次更新。
+        return self.learning_starts - 1 + self.max_updates
+
+    @property
+    def epsilon_decay_decisions(self) -> int:
+        remaining: int = max(0, self.total_decisions - self.learning_starts)
+        return max(1, math.ceil(remaining * self.epsilon_decay_fraction))
+
+
+def epsilon_at(config: TrainConfig, decisions_before_action: int) -> float:
+    """输入动作执行前已完成的累计决策数；reset和经验池覆盖都不重启衰减。
+
+    前learning_starts次动作完全随机。此后从start线性降到end，
+    衰减跨度由本次剩余总决策预算×epsilon_decay_fraction推导，
+    不是独立步数上限。N环境共用全局序号；预算小到只有预填时保持全随机。
+    """
+    if decisions_before_action < config.learning_starts:
+        return 1.0
+    elapsed: int = decisions_before_action - config.learning_starts
+    if elapsed >= config.epsilon_decay_decisions:
+        return config.epsilon_end
+    fraction: float = elapsed / config.epsilon_decay_decisions
+    return max(config.epsilon_end,
+               config.epsilon_start + (config.epsilon_end - config.epsilon_start) * fraction)
 
 
 @dataclass(frozen=True)
@@ -148,7 +188,7 @@ def train_loop(
                             config.game_seed + episodes_finished
                         ).observation
             need_reset = False
-        epsilon = 1.0 if len(replay) < config.learning_starts else config.epsilon
+        epsilon = epsilon_at(config, decisions)
         action = agent.act(observation, epsilon)
         step_result = task.step(action)
         decisions += 1
@@ -219,8 +259,7 @@ def vector_train_loop(
             for i, future in resets.items():
                 observations[i] = future.result().observation
                 needs_reset[i] = False
-            epsilons: list[float] = [1.0 if len(replay) + i < config.learning_starts else config.epsilon
-                                     for i in range(active)]
+            epsilons: list[float] = [epsilon_at(config, decisions + i) for i in range(active)]
             actions: list[int] = agent.act_batch(observations[:active], epsilons)
             pending: list[Future[StepResult]] = [workers.submit(tasks[i].step, actions[i]) for i in range(active)]
             for i, future in enumerate(pending):
@@ -257,9 +296,18 @@ class TrainingProgress:
         self.last_render: float = self.started
         self.interactive: bool = sys.stderr.isatty()
         self.width: int = 0
+        self.recent_rewards: deque[float] = deque(maxlen=1000)
+        self.reward_sum: float = 0.0
         self.update(0, 0, force=True)
 
-    def update(self, updates: int, decisions: int, force: bool = False) -> None:
+    def update(self, updates: int, decisions: int, force: bool = False,
+               reward: float | None = None, epsilon: float = 1.0) -> None:
+        # 每条经验都计入窗口；显示节流不能导致遗漏奖励。
+        if reward is not None:
+            if len(self.recent_rewards) == self.recent_rewards.maxlen:
+                self.reward_sum -= self.recent_rewards[0]
+            self.recent_rewards.append(reward)
+            self.reward_sum += reward
         now: float = time.monotonic()
         if not force and now - self.last_render < (0.5 if self.interactive else 5.0):
             return
@@ -272,8 +320,11 @@ class TrainingProgress:
         eta: str = f'{(self.total - updates) / rate:.0f}s' if rate > 0 else '--'
         phase: str = (f'预填经验 {min(decisions, self.learning_starts)}/{self.learning_starts}'
                       if updates == 0 else '训练')
+        mean_reward: str = (f'{self.reward_sum / len(self.recent_rewards):+.4f}'
+                            if self.recent_rewards else '--')
         line: str = (f'{phase} [{bar}] {fraction:6.1%} 更新 {updates}/{self.total}'
-                     f' | 决策 {decisions} | {rate:.0f} 更新/s | 已用 {elapsed:.0f}s | 剩余 {eta}')
+                     f' | 决策 {decisions} | {rate:.0f} 更新/s | 已用 {elapsed:.0f}s | 剩余 {eta}'
+                     f' | 近{len(self.recent_rewards)}决策均奖 {mean_reward} | ε {epsilon:.4f}')
         if self.interactive:
             self.width = max(self.width, len(line))
             print('\r' + line.ljust(self.width), end='', file=sys.stderr, flush=True)
@@ -286,8 +337,10 @@ class TrainingProgress:
 
 
 def run_native(config: TrainConfig) -> None:
+    if config.update_backend not in ('eager', 'scripted'):
+        raise ValueError('更新后端必须为eager或scripted')
     if config.task_version not in TRAIN_TASK_VERSIONS:
-        raise ValueError('训练入口只支持v2/v3/v4/v5任务')
+        raise ValueError('训练入口只支持v2至v7任务')
     if config.num_envs <= 0 or config.max_updates <= 0:
         raise ValueError('环境数与更新预算必须为正')
     if not 0 < config.batch_size <= config.learning_starts <= config.capacity:
@@ -301,10 +354,20 @@ def run_native(config: TrainConfig) -> None:
     online: QNetwork = QNetwork(observation_size, ACTION_COUNT)
     target: QNetwork = QNetwork(observation_size, ACTION_COUNT)
     optimizer: torch.optim.Optimizer = torch.optim.SGD(online.parameters(), lr=config.learning_rate)
-    agent = Agent(online, target, optimizer, config.gamma, config.exploration_seed)
+    backend_start: float = time.monotonic()
+    if config.update_backend == 'scripted':
+        from fast_update import ScriptedSGDAgent
+        agent = ScriptedSGDAgent(online, target, optimizer, config.gamma, config.exploration_seed)
+    else:
+        agent = Agent(online, target, optimizer, config.gamma, config.exploration_seed)
+    backend_init_seconds: float = time.monotonic() - backend_start
     replay = TensorReplay(config.capacity, observation_size, config.replay_seed)
     before = {name: parameter.detach().clone() for name, parameter in online.named_parameters()}
     print('任务：', config.task_version, '观察维数：', observation_size)
+    print('更新后端：', config.update_backend)
+    print(f'探索：前{config.learning_starts}次决策全随机；之后{config.epsilon_start:g}→'
+          f'{config.epsilon_end:g}，衰减跨度{config.epsilon_decay_decisions}次决策'
+          f'（剩余预算的{config.epsilon_decay_fraction:.0%}）；总决策预算{config.total_decisions}')
     print('预算：', config.num_envs, '个无窗口游戏，CPU；', config.max_updates, '次更新；每动作', TICKS, 'tick；每局最多', config.episode_limit, '次决策')
     print('输出目录：', destination, flush=True)
     start = time.monotonic()
@@ -320,7 +383,8 @@ def run_native(config: TrainConfig) -> None:
             if int(row['decision']) % 1000 == 0:
                 log.flush()
             progress.update(int(row['updates']), int(row['decision']),
-                            force=int(row['updates']) == config.max_updates)
+                            force=int(row['updates']) == config.max_updates, reward=float(row['reward']),
+                            epsilon=float(row['epsilon']))
         if config.num_envs == 1:
             summary = train_loop(tasks[0], agent, replay, config, record)
         else:
@@ -328,7 +392,8 @@ def run_native(config: TrainConfig) -> None:
         native_version = runtimes[0].implementation
     changed = any(not torch.equal(before[name], value) for name, value in online.named_parameters())
     report = dict(asdict(summary), parameter_changed=changed, elapsed_seconds=time.monotonic()-start,
-                  native_version=native_version, num_envs=config.num_envs, headless=True)
+                  native_version=native_version, num_envs=config.num_envs, headless=True,
+                  update_backend=config.update_backend, backend_init_seconds=backend_init_seconds)
     report['updates_per_second'] = summary.updates / report['elapsed_seconds']
     report['decisions_per_second'] = summary.decisions / report['elapsed_seconds']
     (destination / 'summary.json').write_text(json.dumps(report, indent=2, allow_nan=False))
@@ -355,8 +420,10 @@ if __name__ == '__main__':
     parser.add_argument('--max-updates', type=int, default=500,
                         help='更新次数上限；094使用4000，其余训练配置保持默认')
     parser.add_argument('--num-envs', type=int, default=1, help='并行游戏进程数；共享一个模型和经验池，默认1')
-    parser.add_argument('--task-version', choices=TRAIN_TASK_VERSIONS, default=SHIELD_TASK_VERSION,
-                        help='v2分差奖励110维；v3事件奖励110维；v4事件奖励84维；v5另加受伤掉盾惩罚（默认）')
+    parser.add_argument('--update-backend', choices=('eager', 'scripted'), default='eager',
+                        help='eager默认教学版；scripted实验性CPU SGD编译加速')
+    parser.add_argument('--task-version', choices=TRAIN_TASK_VERSIONS, default=HIT_TASK_VERSION,
+                        help='v2分差奖励110维；v3事件奖励110维；v4事件奖励84维；v5另加受伤掉盾惩罚；v6同v5奖励36维；v7逐次子弹伤害奖励（默认）')
     args = parser.parse_args()
     if args.num_envs <= 0:
         parser.error('--num-envs必须为正整数')
@@ -367,7 +434,9 @@ if __name__ == '__main__':
             from check_train import checks
             checks()
         elif args.run:
-            run_native(TrainConfig(max_updates=args.max_updates, num_envs=args.num_envs, task_version=args.task_version, episode_limit=1000))
+            run_native(TrainConfig(max_updates=args.max_updates, num_envs=args.num_envs,
+                                   task_version=args.task_version, episode_limit=1000,
+                                   update_backend=args.update_backend))
         else:
             parser.print_help()
     except NotImplementedError as error:

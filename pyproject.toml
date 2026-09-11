@@ -14,6 +14,7 @@ dependencies = ["gymnasium[classic-control]>=1.3,<2"]
 chromium = ["chromium-bsu-rl==0.1.0"]
 dev = ["PyYAML>=6.0"]
 dqn = [
+    "numpy>=2,<3",
     "torch>=2.13,<3",
     "onnx>=1.22,<2",
     "onnxruntime>=1.29,<2",

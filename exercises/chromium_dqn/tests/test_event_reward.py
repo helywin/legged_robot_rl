@@ -36,7 +36,7 @@ class RewardChecks(unittest.TestCase):
     def test_components_differences_terminal_and_no_position_reward(self) -> None:
         before=replace(fixture(),events=RawEvents(enemies_destroyed=5,pickups=2))
         after=replace(before,mode='level_over',events=RawEvents(enemies_destroyed=7,pickups=3))
-        self.assertAlmostEqual(compute_reward(before,after),22.2)
+        self.assertAlmostEqual(compute_reward(before,after),40.2)
         self.assertEqual(compute_reward(after,after),0.0)
         corner=replace(before,player=replace(before.player,position=(10.0,-7.5,25.0)))
         self.assertEqual(compute_reward(before,corner),0.0)

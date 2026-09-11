@@ -213,3 +213,66 @@ v4删除玩家keyboard_motion两项、8颗敌弹的16项速度、4个道具的8�
 
 进度条按总更新数显示，终端每0.5秒刷新，重定向每5秒输出，结束强制显示100%。
 记录：[[experiments/2026-09-11-chromium-shield-reward/README]]。
+
+
+## CPU可选加速更新
+
+```bash
+.venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 400000 --num-envs 32 --update-backend scripted
+```
+
+固定普通SGD更新编译后执行，32环境三组10000更新对照吞吐约提升18%，
+逐步日志与最终参数完全一致。经验池共享内存写入优化已默认启用。
+由于当前Python3.14上PyTorch对torch.jit.script有兼容性警告，编译入口保持可选；
+默认eager。遇到编译兼容问题可用`--update-backend eager`运行学习版。
+推理权重保持原格式。不能用该结果声称更快收敛。
+当前.venv为CPU版PyTorch，CUDA尚未实测。
+记录：[[experiments/2026-09-11-chromium-replay-throughput/README]]。
+
+
+## 当前默认：36维观察与近期平均奖励
+
+训练现在默认task-v6-36：自身8项、最近2敌机×3、最近4敌弹×3、最近1道具×10。
+保留当前v5奖励计算（含用户改成的击毁×10、拾取+0.2、损命-5、过关+20、受伤掉盾/100惩罚）。
+只缩减槽位，不变更排序、缩放、动作和网络隐藏层。旧权重仍按其版本加载。
+
+```bash
+.venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 40000 --num-envs 24 --task-version task-v6-36
+```
+
+不要继续带旧v4参数，否则仍训练84维且没有护盾惩罚。确认启动打印task-v6-36、36维。
+新输入形状需要重新训练；已有84维权重不能直接装进36维网络。
+
+进度条“近1000决策均奖”统计最近1000条经验的reward均值，
+不足1000条按实际数量计算；包括预填经验，多个环境按经验入池顺序合并。
+每条经验都计入，终端每0.5秒原行刷新；输出重定向时每5秒打印，结束强制刷新。
+这是每决策奖励，不是每局总奖励、原始游戏分数或独立评测。
+详见[[experiments/2026-09-11-chromium-36-observation/README]]。
+
+
+
+## 探索率随本次总预算自动调整
+
+前256次决策完全随机；预填结束后，在剩余决策预算前80%内将epsilon
+从1.0线性降到0.05，之后保持0.05。开新局不重启，多环境累计计数。
+只设置max_updates，不需要再改固定衰减步数或第二个停止上限。
+
+当前每条可学习经验更新一次，总决策数=learning_starts-1+max_updates。
+例如40000更新：总决策40255，预填256次，剩余39999次；
+衰减跨度ceil(39999×0.8)=32000，约最后8000次决策保持0.05。
+配置保存epsilon_start/end/decay_fraction；启动打印推导预算，进度条显示ε。
+评测仍直接选最大Q动作。
+记录：[[experiments/2026-09-11-chromium-epsilon-decay/README]]。
+
+
+## 当前训练默认：v7逐次命中反馈
+
+```bash
+.venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 40000 --num-envs 24 --task-version task-v7-hit-feedback
+```
+
+36维不变。每次子弹实际削血，立即按削血/敌机初始血量给分，子弹击毁额外+2；
+总伤害裁剪到剩余血量。碰撞和重生爆炸清场不再当作射击奖励。
+拾取+0.2、损命-5、受伤掉盾/100惩罚、过关+20保持不变。
+旧v4/v6显式参数仍选择旧奖励，注意启动版本。
+详细机制与验证：[[experiments/2026-09-11-chromium-reward-redesign/README]]。

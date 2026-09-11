@@ -1,5 +1,6 @@
-"""训练用预分配经验池，避免每次更新把32条Python观察重新转成张量。"""
+"""预分配CPU经验池：NumPy共享存储写入，PyTorch独立批次采样。"""
 import random
+from numpy import ndarray
 import torch
 from agent import Batch
 from replay import Transition
@@ -19,18 +20,22 @@ class TensorReplay:
         self.rewards: torch.Tensor = torch.empty(capacity, dtype=torch.float32)
         self.terminated: torch.Tensor = torch.empty(capacity, dtype=torch.bool)
         self.truncated: torch.Tensor = torch.empty(capacity, dtype=torch.bool)
+        # numpy视图与CPU张量共享内存；赋值直接转换到目标dtype，避免六次张量写入派发。
+        self._write_views: tuple[ndarray, ...] = tuple(tensor.numpy() for tensor in (
+            self.observations, self.actions, self.rewards, self.next_observations,
+            self.terminated, self.truncated,
+        ))
 
     def __len__(self) -> int:
         return self._size
 
     def add(self, row: Transition) -> None:
         index: int = self._next
-        self.observations[index].copy_(torch.tensor(row.observation, dtype=torch.float32))
-        self.next_observations[index].copy_(torch.tensor(row.next_observation, dtype=torch.float32))
-        self.actions[index] = row.action
-        self.rewards[index] = row.reward
-        self.terminated[index] = row.terminated
-        self.truncated[index] = row.truncated
+        for view, value in zip(self._write_views, (
+            row.observation, row.action, row.reward, row.next_observation,
+            row.terminated, row.truncated,
+        )):
+            view[index] = value
         self._next = (index + 1) % self.capacity
         self._size = min(self._size + 1, self.capacity)
 

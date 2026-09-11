@@ -17,7 +17,9 @@
 
 默认任务task-v3-events：110维观察与v2完全一致，新版奖励见下文。
 候选task-v4-no-motion：同一事件奖励，删除26项运动字段，观察84维。
-训练默认task-v5-shield-damage：同样84维，再减去本步受伤掉盾量/100。
+训练默认task-v7-hit-feedback：36维，子弹每次实际削减血量的比例给奖励，
+子弹完成击毁额外+2；碰撞/重生爆炸不计攻击收益。其他项沿用当前v6。
+保留自身8项、最近2敌机×3、最近4敌弹×3、最近1道具×10。
 注意GameTask默认仍v3兼容教学检查，训练入口显式传入保存的任务版本。
 历史task-v1/v2仍支持原分差奖励，下面的分差说明仅适用于旧版。：
 动作索引0..17直接对应原生0..17；每次5tick。自然结束由runtime决定。
@@ -89,7 +91,9 @@ from runtime import Runtime, RawSnapshot, RawPowerUp, RawEvents
 TASK_VERSION = 'task-v3-events'
 COMPACT_TASK_VERSION = 'task-v4-no-motion'
 SHIELD_TASK_VERSION = 'task-v5-shield-damage'
-TRAIN_TASK_VERSIONS = ('task-v2-powerups', TASK_VERSION, COMPACT_TASK_VERSION, SHIELD_TASK_VERSION)
+SMALL_TASK_VERSION = 'task-v6-36'
+HIT_TASK_VERSION = 'task-v7-hit-feedback'
+TRAIN_TASK_VERSIONS = ('task-v2-powerups', TASK_VERSION, COMPACT_TASK_VERSION, SHIELD_TASK_VERSION, SMALL_TASK_VERSION, HIT_TASK_VERSION)
 SHIELD_DAMAGE_SCALE = 100.0
 OBSERVATION_SIZE = 110
 POWERUP_COUNT = 4
@@ -103,6 +107,8 @@ def observation_size_for(task_version: str) -> int:
         return OBSERVATION_SIZE
     if task_version in (COMPACT_TASK_VERSION, SHIELD_TASK_VERSION):
         return 84
+    if task_version in (SMALL_TASK_VERSION, HIT_TASK_VERSION):
+        return 36
     raise ValueError(f'不支持的任务版本：{task_version}')
 
 ACTION_COUNT = 18
@@ -212,17 +218,21 @@ def encode_task_observation(snapshot: RawSnapshot, task_version: str) -> list[fl
     """v4只删除运动字段：自身8、敌机4×3、敌弹8×3、道具4×10，共84项。
 
     从同一编码投影，保证排序、缩放、填充和其余信息与v3完全相同。
-    v4没有历史帧或隐含速度输入；普通前馈网络不能从单帧确定运动方向。
+    v4/v5为84维；v6仅减少槽位数，8+2×3+4×3+1×10=36。
+    没有历史帧或隐含速度输入；普通前馈网络不能从单帧确定运动方向。
     """
     observation_size_for(task_version)
     full: list[float] = encode_observation(snapshot, task_version != 'task-v1')
-    if task_version not in (COMPACT_TASK_VERSION, SHIELD_TASK_VERSION):
+    if task_version not in (COMPACT_TASK_VERSION, SHIELD_TASK_VERSION, SMALL_TASK_VERSION, HIT_TASK_VERSION):
         return full
     compact: list[float] = full[:2] + full[4:22]
     for offset in range(22, 62, 5):
         compact.extend(full[offset:offset + 3])
     for offset in range(62, 110, 12):
         compact.extend(full[offset:offset + 3] + full[offset + 5:offset + 12])
+    if task_version in (SMALL_TASK_VERSION, HIT_TASK_VERSION):
+        # 84维中的自身8、前2敌机6、前4敌弹12、首个道具10。
+        return compact[:14] + compact[20:32] + compact[44:54]
     return compact
 
 
@@ -239,15 +249,17 @@ def event_delta(before: RawSnapshot, after: RawSnapshot) -> RawEvents:
 
 def compute_reward(before: RawSnapshot, after: RawSnapshot,
                    task_version: str = TASK_VERSION) -> float:
-    """v3/v4奖励=击毁+0.2拾取-5损命+20过关；v1/v2保留原分差奖励。"""
+    """v7按子弹削血比例+2×子弹击毁；v3..v6保留当前击毁×10规则。"""
     observation_size_for(task_version)
     if task_version in ('task-v1', 'task-v2-powerups'):
         return (after.player.score - before.player.score) / 100.0
     events: RawEvents = event_delta(before, after)
     completed: bool = before.mode != 'level_over' and after.mode == 'level_over'
     shield_penalty: float = (events.shield_damage / SHIELD_DAMAGE_SCALE
-                             if task_version == SHIELD_TASK_VERSION else 0.0)
-    return float(events.enemies_destroyed + 0.2 * events.pickups - 5.0 * events.lives_lost
+                             if task_version in (SHIELD_TASK_VERSION, SMALL_TASK_VERSION, HIT_TASK_VERSION) else 0.0)
+    attack_reward: float = (events.projectile_damage_fraction + 2.0 * events.projectile_kills
+                            if task_version == HIT_TASK_VERSION else events.enemies_destroyed * 10)
+    return float(attack_reward + 0.2 * events.pickups - 5.0 * events.lives_lost
                  + 20.0 * completed - shield_penalty)
 
 
@@ -268,7 +280,7 @@ class GameTask:
         """开始新局；全部准备成功后，才允许下一次step。"""
         self._needs_reset = True
         snapshot = self.runtime.reset(seed)
-        if self.task_version in (TASK_VERSION, COMPACT_TASK_VERSION, SHIELD_TASK_VERSION) and snapshot.events is None:
+        if self.task_version in (TASK_VERSION, COMPACT_TASK_VERSION, SHIELD_TASK_VERSION, SMALL_TASK_VERSION, HIT_TASK_VERSION) and snapshot.events is None:
             raise ValueError('新版任务需要原生事件接口')
         observation = encode_task_observation(snapshot, self.task_version)
         result = ResetResult(

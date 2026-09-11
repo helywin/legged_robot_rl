@@ -21,7 +21,7 @@ def main() -> None:
         for count in (1,4,8):
             output = StringIO()
             with redirect_stdout(output):
-                run_native(TrainConfig(max_updates=4000, num_envs=count, task_version='task-v2-powerups'))
+                run_native(TrainConfig(max_updates=4000, num_envs=count, task_version='task-v2-powerups', epsilon_start=.2, epsilon_end=.2))
             line = next(line for line in output.getvalue().splitlines() if line.startswith('输出目录：'))
             directory = Path(line.split('：',1)[1].strip())
             report: dict[str, object] = json.loads((directory/'summary.json').read_text())

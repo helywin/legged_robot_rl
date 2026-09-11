@@ -55,7 +55,7 @@ def checks() -> None:
         if expected_updates == 1:
             assert not rows[-1].terminated and not rows[-1].truncated, '训练预算不能伪造回合结束'
         assert [row['updates'] for row in records] == [0, 0, 1, 2][:expected_decisions]
-        assert [row['epsilon'] for row in records] == [1.0, 1.0, 1.0, config.epsilon][:expected_decisions]
+        assert [row['epsilon'] for row in records] == [1.0, 1.0, 1.0, config.epsilon_start][:expected_decisions]
         assert [row['episode'] for row in records] == [1, 1, 2, 2][:expected_decisions]
         print('循环诊断通过：', result)
     print('人工环境验证了真实网络更新与调度；真实游戏训练仍需--run。')

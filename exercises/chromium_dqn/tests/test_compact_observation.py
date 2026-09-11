@@ -40,7 +40,7 @@ class CompactChecks(unittest.TestCase):
                               ('task-v3-events', 110), (COMPACT_TASK_VERSION, 84)]:
             self.assertEqual(observation_size_for(version), size)
             self.assertEqual(len(encode_task_observation(before, version)), size)
-        self.assertAlmostEqual(compute_reward(before, after, COMPACT_TASK_VERSION), -2.8)
+        self.assertAlmostEqual(compute_reward(before, after, COMPACT_TASK_VERSION), 15.2)
         self.assertEqual(compute_reward(before, after, COMPACT_TASK_VERSION),
                          compute_reward(before, after, 'task-v3-events'))
 
