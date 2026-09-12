@@ -32,7 +32,7 @@ RUN_CHROMIUM_GUI_TESTS=1 .venv/bin/python -m unittest discover -s exercises/chro
 
 ## 产物与实测
 
-旧版普通运行：`runs/train-313698159f7e4829ac64bd7d48830c86/`，4255决策、4000更新、9.902秒。使用改动前HEAD的train.py及保留的/tmp/chromium-bsu-rl-before-speed原生二进制；其他旧路径行为未改变。另有cProfile运行用于查开销，耗时不用于下表。
+旧版普通运行：`runs/train-313698159f7e4829ac64bd7d48830c86/`，4255决策、4000更新、9.902秒。使用改动前HEAD的train.py，以及当时保留在系统临时目录中的 `chromium-bsu-rl-before-speed` 原生二进制；其他旧路径行为未改变。另有cProfile运行用于查开销，耗时不用于下表。
 
 新基准全部配置/权重/日志路径列在`exercises/chromium_dqn/runs/throughput-benchmark.json`；复现实验脚本会生成新随机命名目录。基准阶段顺序执行各组，不同时运行争抢CPU的训练。
 

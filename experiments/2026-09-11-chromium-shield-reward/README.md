@@ -65,7 +65,7 @@ third_party/chromium-bsu-rl/scripts/build_chromium_rl.sh
 
 ## 产物与观察
 
-- 编译日志：/tmp/chromium-shield-build.log。
+- 编译日志当时保存在系统临时目录中，文件名为 `chromium-shield-build.log`。
 - 训练：exercises/chromium_dqn/runs/train-4a7eef4faa1643a1bbb3dd8da2a16871/。
 - 目录含config.json、steps.jsonl、summary.json、policy.pt，不提交生成数据。
 - 实际755决策、500更新、总奖励-45.68、last_loss=0.0197104085、参数确有变化。

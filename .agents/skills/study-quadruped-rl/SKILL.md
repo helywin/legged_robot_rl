@@ -129,7 +129,7 @@ description: 面向初学者以直觉、具体数字、完整因果链和亲手�
 - 指标与通过条件；
 - 运行较昂贵时的预计耗时和产物位置。
 
-现有 Isaac Lab 环境统一使用 `/home/jiang/distrobox-homes/bin/isaac-lab`。第一次观察和回放优先使用 GUI，训练优先无界面运行。不要把重新安装或升级环境混入实验。
+现有 Isaac Lab 环境统一使用 `~/distrobox-homes/bin/isaac-lab`。第一次观察和回放优先使用 GUI，训练优先无界面运行。不要把重新安装或升级环境混入实验。
 
 新建实验记录时运行：
 

@@ -63,7 +63,7 @@ CPU真实无窗口8环境，短训练2000更新。实际配置：
 
 ## 产物与结果
 
-- 训练目录：/home/jiang/code/legged_robot_rl/exercises/chromium_dqn/runs/train-96489d791642475599094051fc659f44，含config.json、steps.jsonl、summary.json、policy.pt。
+- 训练目录：exercises/chromium_dqn/runs/train-96489d791642475599094051fc659f44，含config.json、steps.jsonl、summary.json、policy.pt。
 - 实际2255决策、2000更新，末次epsilon=0.981019。
 - 全部2255条日志的epsilon按其decision序号重新计算，逐项一致；真实权重加载通过。
 - 新增2项测试通过：默认边界/非法配置，以及单环境与4环境在多次reset和经验池环回后曲线相同。
@@ -91,7 +91,7 @@ CPU真实无窗口8环境，短训练2000更新。实际配置：
 ```
 
 3项探索率测试与循环检查通过。真实1000更新、1255决策短训练完成，
-终端显示最终ε=0.0500，日志暂存/tmp/chromium-epsilon-budget.log。
+终端显示最终ε=0.0500，日志当时暂存在系统临时目录中，文件名为 `chromium-epsilon-budget.log`。
 其runs/train-9acff93527374543a507a72a0fee9cbb目录在后续读取时已不在工作区，
 因此本次仅按保留的终端日志确认运行完成，不声称逐条复核该次经验日志。
 本轮不代表策略收敛。

@@ -77,7 +77,7 @@ third_party/chromium-bsu-rl/scripts/build_chromium_rl.sh
 .venv/bin/python -m unittest discover -s third_party/chromium-bsu-rl/tests -p 'test_*.py' -v
 .venv/bin/python -m unittest discover -s exercises/chromium_dqn/tests -v
 .venv/bin/python exercises/chromium_dqn/train.py --run --max-updates 4000 --num-envs 8
-.venv/bin/python exercises/chromium_dqn/evaluate.py --run --checkpoint /home/jiang/code/legged_robot_rl/exercises/chromium_dqn/runs/train-d26211ac9e2743e3bc5ccd4bd6713459/policy.pt
+.venv/bin/python exercises/chromium_dqn/evaluate.py --run --checkpoint exercises/chromium_dqn/runs/train-d26211ac9e2743e3bc5ccd4bd6713459/policy.pt
 ```
 
 ## 验证与结果
@@ -90,9 +90,9 @@ third_party/chromium-bsu-rl/scripts/build_chromium_rl.sh
 - 200条命中未击毁经验有伤害反馈。第33决策掉敌机7血，奖励0.063636；
   第65决策再掉3.5血，奖励0.031818；并非击毁后才给一次分。
 - 真实权重play --check通过；冻结模型/随机各20局评测运行完成，参数保持不变。
-- 训练产物：/home/jiang/code/legged_robot_rl/exercises/chromium_dqn/runs/train-d26211ac9e2743e3bc5ccd4bd6713459。
-- 评测产物：/home/jiang/code/legged_robot_rl/exercises/chromium_dqn/runs/eval-8a8aad0b153e4faa86ea2be7c0a3b642。
-- 编译日志/tmp/chromium-hit-build.log，测试日志/tmp/chromium-hit-*-tests.log。
+- 训练产物：exercises/chromium_dqn/runs/train-d26211ac9e2743e3bc5ccd4bd6713459。
+- 评测产物：exercises/chromium_dqn/runs/eval-8a8aad0b153e4faa86ea2be7c0a3b642。
+- 当时的系统临时目录中保存了编译日志 `chromium-hit-build.log` 和测试日志 `chromium-hit-*-tests.log`。
 - 生成权重和逐步日志不提交。
 
 评测汇总（仅短训练接线证据，不与旧版百万更新作效果对照）：

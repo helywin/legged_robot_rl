@@ -32,7 +32,7 @@ RUN_CHROMIUM_GUI_TESTS=1 .venv/bin/python -m unittest discover -s exercises/chro
 - 教师仅冒烟训练1次更新：`runs/train-ef13f6212a1b4f85986870777412610a/`，256决策、1局结束、参数改变、loss19.661928、0.727秒。
 - 新权重seed101经GUI回放路径执行206决策、5075分、hero_dead，参数不变；通过evaluate_episode另跑一局得到相同决策/得分，20.6模拟秒。未人工观察GUI画面，不称为视觉行为验收。
 - 旧4000更新模型seed101在扩展后的原生版本仍为192决策、5000分、hero_dead，与此前数据一致。
-- 生成功能验证日志位于/tmp/chromium-powerups-build.log、/tmp/chromium-native-regression.log、/tmp/chromium-powerups-tests.log、/tmp/chromium-v2-smoke.log、/tmp/chromium-v2-play.log；临时日志与runs不提交。
+- 功能验证日志当时保存在系统临时目录中，文件名分别为 `chromium-powerups-build.log`、`chromium-native-regression.log`、`chromium-powerups-tests.log`、`chromium-v2-smoke.log`、`chromium-v2-play.log`；临时日志与runs不提交。
 
 ## 结果与边界
 

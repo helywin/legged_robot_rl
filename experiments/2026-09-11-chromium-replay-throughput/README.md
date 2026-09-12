@@ -59,8 +59,11 @@ nvidia-smi可见RTX5070Ti Laptop 12227MiB，但当前虚拟环境不是CUDA版Py
 
 ## 完整命令
 
+从本仓库根目录执行；性能分析文件写入已忽略的 `exercises/chromium_dqn/runs/`。
+
 ```bash
-.venv/bin/python -m cProfile -o /tmp/chromium-training.prof exercises/chromium_dqn/train.py --run --max-updates 4000 --num-envs 32
+mkdir -p exercises/chromium_dqn/runs
+.venv/bin/python -m cProfile -o exercises/chromium_dqn/runs/chromium-training.prof exercises/chromium_dqn/train.py --run --max-updates 4000 --num-envs 32
 .venv/bin/python experiments/2026-09-11-chromium-replay-throughput/benchmark.py
 .venv/bin/python -m unittest discover -s exercises/chromium_dqn/tests -p 'test_fast_update.py' -v
 .venv/bin/python -m unittest discover -s exercises/chromium_dqn/tests -p 'test_parallel_training.py' -v

@@ -8,7 +8,7 @@ tags:
   - reinforcement-learning/python
 status: learned
 created: 2026-09-01
-updated: 2026-09-01
+updated: 2026-09-12
 related:
   - "[[概念/观察与动作]]"
   - "[[概念/神经网络参数与预测]]"
@@ -29,9 +29,26 @@ Python 函数可以表达最小的预测过程：接收观察和参数，在函�
 ## 职责边界
 
 - 调用预测函数只计算结果，不等于训练；
-- `return` 返回的是一个新结果，不会自动修改输入；
+- `return` 把对象交还调用者，本身不保证创建新对象，也不保证函数没有修改输入；本页早期预测练习约定只读输入；
 - 权重和偏置怎样更新属于后续学习，本节点只解释怎样使用它们；
 - PyTorch 网络会把大量类似计算组织起来，但不改变“输入经过参数计算得到输出”的基本关系。
+
+## 返回值与修改输入，是两件事
+
+下面是独立的标准库机制示意，可以先预测结果：
+
+```python
+def append_and_return(values):
+    values.append(3)
+    return values
+
+original = [1, 2]
+result = append_and_return(original)
+print(original)          # 预期：[1, 2, 3]
+print(result is original)  # 预期：True
+```
+
+`values` 指向调用者传入的列表；`append` 修改同一个列表；`return values` 返回的仍是它；`is` 检查是否为同一个对象。因而不能把“函数有返回值”当作输入不变的证明。模型预测函数不改输入，是实现和接口契约，需要实际检查。
 
 ## 对应课程与代码
 

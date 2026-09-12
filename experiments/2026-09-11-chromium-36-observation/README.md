@@ -87,7 +87,7 @@ CPU、无窗口、当前原生shield_damage接口；无C++修改。实际短训�
 - 人工1200条递增奖励测试验证滚动均值：最后1000条200..1199，均值699.5。
 - 实际日志最后1000条reward重算与进度条显示一致。
 - 冻结模型/随机各20局评测接线，种子30001..30020，参数不更新。
-- 评测目录：/home/jiang/code/legged_robot_rl/exercises/chromium_dqn/runs/eval-5b3a57ff3803410f90136592ce9e6e20。
+- 评测目录：exercises/chromium_dqn/runs/eval-5b3a57ff3803410f90136592ce9e6e20。
 
 ## 结论与下一步
 

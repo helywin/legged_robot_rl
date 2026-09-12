@@ -10,7 +10,7 @@ tags:
   - reinforcement-learning/neural-network
 status: learning
 created: 2026-09-02
-updated: 2026-09-04
+updated: 2026-09-12
 related:
   - "[[概念/DQN与神经网络估值]]"
   - "[[概念/DQN训练流程]]"
@@ -287,10 +287,10 @@ $$
 q_{selected}=Q_{\theta}(s,a)
 $$
 
-target 是奖励和目标网络未来估计构成的参照：
+target 是奖励和目标网络未来估计构成的参照。记 d = 1 表示真正终止，d = 0 表示仍有后续；它只控制未来项：
 
 $$
-y=r+\gamma\max_{a'}Q_{\theta^-}(s',a')
+y=r+\gamma(1-d)\max_{a'}Q_{\theta^-}(s',a')
 $$
 
 平方损失衡量二者相差多远：
@@ -307,7 +307,7 @@ $$
 \nabla_{\theta}L
 $$
 
-学习率记作 $\alpha$，optimizer 的更新可直观理解为：
+学习率记作 $\alpha$，不带动量和权重衰减的普通 SGD 更新如下。Adam 等优化器还包含自己的历史统计与缩放，不能将这个式子当成其完整实现：
 
 $$
 \theta \leftarrow \theta-\alpha\nabla_{\theta}L
@@ -443,9 +443,9 @@ run_training_loop
 
 其中 `run_training_loop` 是时间线，另外四段是它在不同阶段调用的工具。变量名字应按“它属于哪个阶段”理解，而不是按出现顺序死记。
 
-## 十一、为什么训练完保存 `.pt`，还要导出 ONNX
+## 十一、检查点与可选的 ONNX 导出
 
-`.pt` 检查点保存 PyTorch 参数和本次配置，适合继续在 Python/PyTorch 中加载。ONNX 保存的是跨工具更容易读取的**前向推理图**。
+本例的 `.pt` 检查点保存 PyTorch 参数和配置，适合重新加载网络。是否能完整续训取决于保存内容，不由扩展名决定；仅有权重不包含优化器、回放和随机源等全部训练现场。ONNX 保存的是跨工具更容易读取的**前向推理图**；导出用于外部工具或部署，不是 DQN 算法与 PyTorch 冻结评估的必需步骤。
 
 本课固定 ONNX 接口：
 
@@ -459,13 +459,13 @@ Linear(4, 64) → ReLU → Linear(64, 2)
 
 `batch_size` 是动态的，因此外部工具既可以一次输入一条 `[1, 4]` 观察，也可以一次输入多条 `[N, 4]` 观察。
 
-ONNX 中**没有**这些训练组件：
+本例导出的 Q 网络 ONNX 中**没有**这些训练组件：
 
 - CartPole 环境；
 - epsilon 随机探索；
 - replay buffer；
 - 目标网络；
-- loss、计算图和 `backward()`；
+- 训练 loss、反向求导图和 `backward()`；前向推理图仍然存在；
 - optimizer。
 
 原因不是导出丢失了训练，而是部署时真正要重复的只有：
@@ -496,15 +496,16 @@ ONNX 中**没有**这些训练组件：
 > 本文的单次更新链已有学习者练习证据；教师参考实现已经完成真实 CartPole 30,000 环境步冒烟训练、检查点保存和 20 回合冻结评估。
 
 > [!warning] 尚未验证
-> 学习者从 TODO 独立写出的完整训练器、学习者 ONNX 数值对照和本机原生 GUI 回放尚待实际运行。ONNX 与 GUI 都不是真机证据。
+> 不能从冒烟指标推定学习者已完成全部独立实现、ONNX 数值对照和本机原生 GUI 验收。第 066 课已有学习者训练指标补记，后续对照见第 067 课；具体证据应分别查原记录，不能沿用早期“完全未运行”的概括。ONNX 与 GUI 都不是真机证据。
 
 ## 关联
 
-- 当前练习：[[049-pytorch-one-dqn-update|把预测、target 和 optimizer 合成一次 DQN 更新]]
-- 下一练习：[[050-pytorch-batch-selected-q|一批经验怎样逐行取得实际动作 Q 值]]
-- 当前批量练习：[[053-pytorch-full-batch-dqn-update|把在线支路和目标支路合成完整批量 DQN 更新]]
-- 当前数据练习：[[054-replay-samples-to-tensors|回放缓冲区样本怎样组装成批量张量]]
-- 当前完整训练：[[066-first-real-cartpole-dqn-smoke-training|第一次真实 CartPole DQN 冒烟训练]]
+- 改进方法选读：[[图谱/DQN改进方法自学路线]]，在理解本文闭环后按需阅读；不表示已启用这些算法。
+- 单步更新参考：[[049-pytorch-one-dqn-update|把预测、target 和 optimizer 合成一次 DQN 更新]]
+- 批量索引参考：[[050-pytorch-batch-selected-q|一批经验怎样逐行取得实际动作 Q 值]]
+- 批量更新参考：[[053-pytorch-full-batch-dqn-update|把在线支路和目标支路合成完整批量 DQN 更新]]
+- 数据组装参考：[[054-replay-samples-to-tensors|回放缓冲区样本怎样组装成批量张量]]
+- 完整训练参考：[[066-first-real-cartpole-dqn-smoke-training|第一次真实 CartPole DQN 冒烟训练]]
 - 简要流程：[[概念/DQN训练流程]]
 - Q 表到神经网络：[[概念/DQN与神经网络估值]]
 - 两个网络：[[概念/目标网络]]

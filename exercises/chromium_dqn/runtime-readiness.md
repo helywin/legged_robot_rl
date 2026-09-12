@@ -7,8 +7,8 @@
 - 原生源码工作树：干净；HEAD：`23a1a36ee286c27afea617e375f140bec10900c2`。
 - 测试对象：现有`third_party/chromium-bsu-rl/build/install/bin/chromium-bsu-rl`，本轮没有重新构建，不能单凭HEAD断言二进制与源码完全一致。
 - 二进制SHA256：`033df972729e43169bc0b1d934022263f0602178197cded17249f79bfd08d51e`。
-- 工作目录：`third_party/chromium-bsu-rl`。
-- 命令：`RUN_CHROMIUM_GUI_TESTS=1 /home/jiang/code/legged_robot_rl/.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v`。
+- 工作目录：`third_party/chromium-bsu-rl`，相对本仓库根目录。
+- 命令：`RUN_CHROMIUM_GUI_TESTS=1 ../../.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v`。解释器路径相对上述工作目录，仍指向本仓库的虚拟环境。
 - 实际结果：`Ran 9 tests in 2.889s`，`OK`，无跳过；其中5项NativeTests、4项TransportTests。
 - 原生检查使用X11显示路径。自动化启动及数据断言不等于人工视觉验收；不是headless证明或学习者实作。
 
@@ -28,7 +28,7 @@
 
 ## 本轮更新：原生reset/seed已补齐并验证
 
-已修改C++并重新构建；新增同步reset(seed)，在原进程与窗口内重建游戏对象。详情和完整命令见[原生验证记录](../../third_party/chromium-bsu-rl/docs/validation/seeded-reset.md)。
+当时已修改 C++ 并重新构建，新增同步 `reset(seed)`，在原进程与窗口内重建游戏对象。历史详细记录位于原生项目的 `docs/validation/seeded-reset.md`（相对 `third_party/chromium-bsu-rl`）；当前检出未包含该文件，以下结果保留为当时的实验记录。
 
 - 12项检查全部通过（8项原生、4项通信/解析），包含正得分与子弹的同种子轨迹、不同进程/绘图模式对照、死亡后重开、非法种子拒绝及状态不变。
 - 20次脏状态重置及动作约0.363秒。另做20次预热+200次重置：约3.207秒，文件描述符保持12，RSS增加1916KiB，关闭后进程退出。有限资源冒烟，不能称为无内存泄漏证明。

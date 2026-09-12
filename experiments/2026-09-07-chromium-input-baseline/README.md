@@ -23,7 +23,7 @@
 ## 命令
 
 ```bash
-/usr/bin/chromium-bsu --window --vidmode 1 --noaudio
+chromium-bsu --window --vidmode 1 --noaudio
 ```
 
 ## 产物
