@@ -500,6 +500,8 @@ Linear(4, 64) → ReLU → Linear(64, 2)
 
 ## 关联
 
+- PPO 对照：[[概念/PPO完整训练流程与公式]]，比较经验来源、网络职责、固定目标与更新流程。
+
 - 改进方法选读：[[图谱/DQN改进方法自学路线]]，在理解本文闭环后按需阅读；不表示已启用这些算法。
 - 单步更新参考：[[049-pytorch-one-dqn-update|把预测、target 和 optimizer 合成一次 DQN 更新]]
 - 批量索引参考：[[050-pytorch-batch-selected-q|一批经验怎样逐行取得实际动作 Q 值]]
